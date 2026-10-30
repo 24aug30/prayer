@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#09080b">
+<title>골방 기도실</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700&family=Noto+Sans+KR:wght@300;400;500&display=swap">
+<style>
+/* 골방: 한 방의 어둠. 기도실은 십자가 하나, 나머지 화면은 조용한 목록. 의도적으로 다크 단일 테마. */
+:root{
+  --bg:#09080b; --panel:#131117; --line:#25222b;
+  --fg:#e3ddd2; --muted:#8d867c; --faint:#57524b;
+  --light:#e9cf98; --glow:rgba(233,207,152,.28);
+  --sage:#a9c2a0; --rec:#d9776a;
+  --serif:"Nanum Myeongjo","Batang",serif;
+  --sans:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.65;padding-top:env(safe-area-inset-top,0px)}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,textarea:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--light);outline-offset:2px}
+[hidden]{display:none!important}
+.view{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 104px;max-width:640px;margin:0 auto}
+h2{font-family:var(--serif);font-weight:700;font-size:21px;margin:0 0 4px;text-wrap:balance}
+.label{font-size:11px;letter-spacing:.14em;color:var(--muted);margin:0 0 6px;display:block}
+.hint{font-size:12px;color:var(--faint);line-height:1.6;margin:0}
+.link{background:none;border:0;color:var(--faint);font-size:12px;text-decoration:underline;text-underline-offset:3px;padding:4px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line);background:var(--panel);padding:10px 18px;border-radius:8px;font-size:14px}
+.btn.primary{border-color:var(--light);color:var(--light);background:transparent}
+.btn:disabled{opacity:.45;cursor:default}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.box textarea,.box input[type=text],.box input[type=password],.box input[type=number]{width:100%;background:transparent;border:0;color:var(--fg);font:inherit;resize:vertical}
+.box textarea{min-height:90px}
+.stack{display:flex;flex-direction:column;gap:16px}
+
+/* 기도실 */
+#room{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;min-height:calc(100vh - 150px)}
+.cross-wrap{position:relative;width:180px;height:260px;display:grid;place-items:center}
+.cross-wrap::before{content:"";position:absolute;inset:-40px;border-radius:50%;background:radial-gradient(closest-side,var(--glow),transparent 75%);opacity:.5;transition:opacity 1.2s}
+.praying .cross-wrap::before{opacity:1;animation:breathe 7s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:scale(.94);opacity:.75}50%{transform:scale(1.06);opacity:1}}
+.cross{position:relative;width:14px;height:220px;background:linear-gradient(var(--light),#b99a62);border-radius:2px;box-shadow:0 0 24px var(--glow)}
+.cross::after{content:"";position:absolute;left:50%;top:58px;width:120px;height:14px;transform:translateX(-50%);background:linear-gradient(90deg,#b99a62,var(--light),#b99a62);border-radius:2px;box-shadow:0 0 24px var(--glow)}
+.clock{font-family:var(--serif);font-size:26px;letter-spacing:.08em;font-variant-numeric:tabular-nums;color:var(--faint)}
+.praying .clock{color:var(--muted)}
+.status{font-size:12px;letter-spacing:.12em;color:var(--faint);display:flex;align-items:center;gap:8px;min-height:1.4em}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--rec);animation:pulse 1.6s infinite}
+@keyframes pulse{50%{opacity:.25}}
+.verse{font-family:var(--serif);color:var(--muted);text-align:center;font-size:14px;max-width:30ch;margin:0;text-wrap:balance}
+.btn-main{border:1px solid var(--light);background:transparent;color:var(--light);padding:14px 40px;border-radius:999px;font-family:var(--serif);font-size:17px;letter-spacing:.1em}
+.btn-main:active{background:rgba(233,207,152,.1)}
+.sound{display:flex;gap:6px}
+.sound button{background:none;border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:12px;color:var(--faint)}
+.sound button[aria-pressed="true"]{border-color:var(--muted);color:var(--fg)}
+.live{width:100%;max-height:30vh;overflow:auto;color:var(--faint);font-size:13px;line-height:1.8;text-align:left;border-top:1px solid var(--line);padding-top:12px}
+.live i{color:#3f3b36;font-style:normal}
+
+/* 정리 화면 */
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.steps li{display:flex;gap:10px;align-items:center;color:var(--muted)}
+.steps li::before{content:"";width:8px;height:8px;border-radius:50%;border:1px solid var(--faint)}
+.steps li.run::before{background:var(--light);border-color:var(--light);animation:pulse 1s infinite}
+.steps li.ok{color:var(--fg)}.steps li.ok::before{background:var(--sage);border-color:var(--sage)}
+.steps li.skip::before{border-style:dashed}
+audio{width:100%;height:40px}
+.topic-edit{display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--line);padding:6px 0}
+.topic-edit input{flex:1;min-width:0}
+.topic-edit .again{font-size:11px;color:var(--sage);flex:none}
+.x{background:none;border:0;color:var(--faint);font-size:18px;padding:0 6px}
+.classes{display:grid;gap:10px}
+.cls h4{margin:0 0 2px;font-size:12px;letter-spacing:.1em;color:var(--muted);font-weight:500}
+.cls ul{margin:0;padding-left:1.1em;font-size:14px}
+.verses{display:flex;flex-direction:column;gap:8px}
+.vs{display:flex;gap:10px;align-items:baseline}
+.vs b{font-family:var(--serif);color:var(--light);font-weight:700;flex:none}
+.vs span{font-size:13px;color:var(--muted)}
+.notice{font-size:13px;color:var(--rec)}
+
+/* 기록 */
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:14px 0 20px}
+.stat{background:var(--panel);padding:14px 16px}
+.stat b{display:block;font-family:var(--serif);font-size:26px;font-weight:700;color:var(--light);font-variant-numeric:tabular-nums;line-height:1.3}
+.stat span{font-size:12px;color:var(--muted)}
+.grid30{display:grid;grid-template-columns:repeat(15,1fr);gap:5px;margin:0 0 22px}
+.grid30 i{aspect-ratio:1;border-radius:3px;background:var(--line)}
+.grid30 i.l1{background:rgba(233,207,152,.35)}.grid30 i.l2{background:rgba(233,207,152,.65)}.grid30 i.l3{background:var(--light)}
+.review-text{white-space:pre-wrap;font-size:14px;margin-top:10px}
+.list{display:flex;flex-direction:column}
+.item{border-top:1px solid var(--line);padding:14px 0;display:flex;flex-direction:column;gap:8px}
+.item-head{display:flex;justify-content:space-between;gap:12px}
+.when{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12px;border:1px solid var(--line);border-radius:999px;padding:2px 10px;color:var(--muted)}
+.chip.ok{border-color:var(--sage);color:var(--sage)}
+details summary{cursor:pointer;color:var(--faint);font-size:12px}
+details .body{margin-top:8px;display:flex;flex-direction:column;gap:10px}
+details p{white-space:pre-wrap;color:var(--muted);font-size:13px;margin:0}
+
+/* 기도 제목 */
+.filters{display:flex;gap:6px;margin:14px 0 6px}
+.filters button{border:1px solid var(--line);background:none;border-radius:999px;padding:5px 14px;font-size:13px;color:var(--muted)}
+.filters button[aria-pressed="true"]{border-color:var(--light);color:var(--light)}
+.topic{border-top:1px solid var(--line);padding:14px 0;display:flex;flex-direction:column;gap:8px}
+.topic-line{display:flex;gap:10px;align-items:flex-start}
+.state{flex:none;font-size:11px;border-radius:4px;padding:2px 8px;border:1px solid var(--faint);color:var(--muted);margin-top:3px}
+.state.ok{border-color:var(--sage);color:var(--sage)}
+.topic-text{flex:1;min-width:0}
+.from{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
+.answer{border-left:2px solid var(--sage);padding-left:12px;font-family:var(--serif);font-size:14px;white-space:pre-wrap}
+.answer-form textarea{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--fg);font:inherit;font-size:14px;padding:10px 12px;min-height:80px;resize:vertical;margin-bottom:8px}
+.empty{color:var(--muted);font-size:14px;padding:28px 0;text-align:center;line-height:1.8}
+
+/* 중보 */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:12px 0 4px}
+.seg button{background:none;border:0;padding:7px 18px;font-size:14px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--panel);color:var(--light)}
+.today-hint{margin:0;font-size:12px;color:var(--faint);text-align:center;max-width:34ch;line-height:1.7}
+.today-hint b{color:var(--muted);font-weight:500}
+.praying .today-hint{visibility:hidden}
+.inter{display:flex;gap:12px;align-items:center;border-top:1px solid var(--line);padding:12px 0}
+.check{flex:none;width:26px;height:26px;border-radius:50%;border:1px solid var(--faint);background:none;display:grid;place-items:center;color:var(--bg);font-size:14px;padding:0}
+.check[aria-pressed="true"]{background:var(--sage);border-color:var(--sage)}
+.inter .who{font-size:15px}.inter .what{color:var(--muted)}
+.inter .sub{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
+.vow{border-top:1px solid var(--line);padding:14px 0;display:flex;flex-direction:column;gap:8px}
+.bar{height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--light)}
+.vow.done .bar i{background:var(--sage)}
+.weekly{display:flex;flex-direction:column;gap:2px;padding:6px 16px}
+.wd{display:flex;gap:12px;align-items:center;border-bottom:1px solid var(--line);padding:6px 0}
+.wd:last-child{border-bottom:0}
+.wd b{width:1.4em;font-family:var(--serif);color:var(--muted);flex:none}
+.wd.now b{color:var(--light)}
+.wd input{flex:1;min-width:0;background:transparent;border:0;color:var(--fg);font:inherit;font-size:14px}
+.chip-btn{font-size:13px;border:1px solid var(--line);border-radius:999px;padding:4px 12px;background:none;color:var(--muted)}
+.chip-btn.on,.chip-btn[aria-pressed="true"]{border-color:var(--sage);color:var(--sage)}
+.date-in{background:transparent;border:1px solid var(--line);border-radius:6px;color:var(--fg);font:inherit;padding:6px 8px;width:auto}
+
+/* 설정 */
+.set{display:flex;flex-direction:column;gap:10px}
+.set-row{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.switch{appearance:none;width:42px;height:24px;border-radius:12px;background:var(--line);position:relative;cursor:pointer;flex:none}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--muted);transition:left .2s}
+.switch:checked{background:rgba(233,207,152,.4)}.switch:checked::after{left:21px;background:var(--light)}
+.key-ok{font-size:12px;color:var(--sage)}
+
+/* 탭, 잠금, 알림 */
+.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;background:rgba(9,8,11,.95);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));z-index:5;transition:opacity .8s}
+.tabs button{flex:1;max-width:150px;background:none;border:0;padding:14px 0;font-size:13px;color:var(--faint)}
+.tabs button[aria-current="true"]{color:var(--light)}
+.praying .tabs,.reviewing .tabs{opacity:0;pointer-events:none}
+.lock{position:fixed;inset:0;background:var(--bg);z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px}
+.lock input{background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--fg);font-size:22px;letter-spacing:.5em;text-align:center;width:180px;padding:10px}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);padding:8px 16px;border-radius:8px;font-size:13px;z-index:40;max-width:90vw}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- 기도실 -->
+<main class="view" id="v-room">
+  <section id="room">
+    <div class="clock" id="clock">00:00</div>
+    <div class="cross-wrap" aria-hidden="true"><div class="cross"></div></div>
+    <div class="status" id="status"></div>
+    <p class="verse" id="verse">너는 기도할 때에 네 골방에 들어가 문을 닫고 은밀한 중에 계신 네 아버지께 기도하라 · 마태복음 6:6</p>
+    <button class="btn-main" id="startBtn">기도 시작</button>
+    <p class="today-hint" id="todayHint" hidden></p>
+    <div class="sound" role="group" aria-label="배경음">
+      <button data-s="off" aria-pressed="true">배경음 없음</button>
+      <button data-s="hum" aria-pressed="false">허밍</button>
+      <button data-s="rain" aria-pressed="false">빗소리</button>
+    </div>
+    <div class="live" id="live" hidden></div>
+  </section>
+
+  <section class="stack" id="review" hidden>
+    <div><h2>기도를 마쳤습니다</h2><div class="when" id="reviewMeta"></div></div>
+    <ul class="steps" id="steps"></ul>
+    <audio id="reviewAudio" controls hidden></audio>
+    <div class="box"><label class="label" for="reviewText">기도 내용</label><textarea id="reviewText"></textarea></div>
+    <div class="box"><label class="label" for="reviewSummary">요약</label><textarea id="reviewSummary" style="min-height:60px" placeholder="AI가 연결되면 자동으로 채워집니다"></textarea></div>
+    <div class="box" id="classBox" hidden><span class="label">감사 · 회개 · 간구</span><div class="classes" id="classes"></div></div>
+    <div class="box" id="verseBox" hidden><span class="label">함께 묵상할 말씀</span><div class="verses" id="verses"></div></div>
+    <div class="box" id="interReview" hidden><span class="label">오늘의 중보 · 기도한 대상을 눌러 표시</span><div class="chips" id="interChips"></div></div>
+    <div class="box"><span class="label">기도 제목</span><div id="topicEdit"></div><button class="link" id="addTopic">+ 제목 추가</button></div>
+    <div class="row">
+      <button class="btn" id="aiBtn">다시 정리하기</button>
+      <button class="btn primary" id="saveBtn">저장</button>
+      <button class="btn" id="discardBtn">저장 안 함</button>
+    </div>
+    <div class="notice" id="reviewNotice" hidden></div>
+  </section>
+</main>
+
+<!-- 기도 제목 -->
+<main class="view" id="v-topics" hidden>
+  <h2>기도 제목</h2>
+  <div class="seg" role="group" aria-label="구분">
+    <button data-seg="mine" aria-pressed="true">내 제목</button>
+    <button data-seg="inter" aria-pressed="false">중보</button>
+  </div>
+  <div id="mineBox">
+    <div class="filters" role="group" aria-label="보기">
+      <button data-f="waiting" aria-pressed="true">기다리는 중</button>
+      <button data-f="answered" aria-pressed="false">응답받음</button>
+      <button data-f="all" aria-pressed="false">전체</button>
+    </div>
+    <div class="list" id="topicList"></div>
+  </div>
+  <div id="interBox" class="stack" hidden>
+    <div>
+      <span class="label" id="todayLabel">오늘의 중보</span>
+      <div class="list" id="todayInter"></div>
+    </div>
+    <div>
+      <div class="set-row"><span class="label" style="margin:0">작정 기도</span><button class="link" id="vowAddBtn">+ 작정 추가</button></div>
+      <div class="box set" id="vowForm" hidden style="margin-top:8px">
+        <label class="hint" for="vowWho">누구를 위해</label><input type="text" id="vowWho" placeholder="예: 아버지">
+        <label class="hint" for="vowText">무엇을</label><input type="text" id="vowText" placeholder="예: 건강 회복">
+        <span class="hint">기간</span>
+        <div class="chips" id="vowDays"><button class="chip-btn" data-d="7">7일</button><button class="chip-btn" data-d="21">21일</button><button class="chip-btn on" data-d="40">40일</button><button class="chip-btn" data-d="100">100일</button></div>
+        <label class="hint" for="vowStart">시작일</label><input type="date" id="vowStart" class="date-in">
+        <div class="row"><button class="btn primary" id="vowSave">작정 시작</button><button class="btn" id="vowCancel">취소</button></div>
+      </div>
+      <div class="list" id="vowList" style="margin-top:6px"></div>
+    </div>
+    <div>
+      <span class="label">요일별 중보 · 쉼표로 여러 명</span>
+      <div class="box weekly" id="weekly"></div>
+    </div>
+  </div>
+</main>
+
+<!-- 기록 -->
+<main class="view" id="v-log" hidden>
+  <h2>기도의 자리</h2>
+  <div class="stats" id="stats"></div>
+  <span class="label">최근 30일</span>
+  <div class="grid30" id="grid30"></div>
+  <div class="box" style="margin-bottom:22px">
+    <div class="set-row"><span class="label" style="margin:0">한 달 돌아보기</span>
+      <select id="monthSel" class="btn" style="padding:6px 10px"></select></div>
+    <button class="btn" id="monthBtn" style="margin-top:10px">돌아보기</button>
+    <div class="review-text" id="monthText"></div>
+  </div>
+  <span class="label">지난 기도</span>
+  <div class="list" id="logList"></div>
+</main>
+
+<!-- 설정 -->
+<main class="view" id="v-set" hidden>
+  <h2>설정</h2>
+  <div class="stack" style="margin-top:16px">
+    <div class="box set">
+      <span class="label">AI 연결 · 이 폰에만 저장</span>
+      <label class="hint" for="kOpenai">음성 전사 (OpenAI API 키)</label>
+      <input type="password" id="kOpenai" placeholder="sk-..." autocomplete="off">
+      <label class="hint" for="kClaude">기도 정리 (Claude API 키)</label>
+      <input type="password" id="kClaude" placeholder="sk-ant-..." autocomplete="off">
+      <div class="row"><button class="btn" id="saveKeys">키 저장</button><span class="key-ok" id="keyState"></span></div>
+      <p class="hint">키가 없어도 기도·녹음·기록은 모두 됩니다. 전사 키가 없으면 기도 중 실시간 글자를, 정리 키가 없으면 직접 적은 제목을 씁니다. 키는 이 폰 밖으로 나가지 않고 해당 회사로만 전송됩니다.</p>
+    </div>
+    <div class="box set">
+      <div class="set-row"><label for="optLive">기도 중 실시간 글자 받아쓰기</label><input type="checkbox" class="switch" id="optLive" checked></div>
+      <p class="hint">녹음 파일이 소리 없이 저장되면 이 기능을 끄세요. 일부 폰은 녹음과 받아쓰기를 동시에 못 합니다.</p>
+      <div class="set-row"><label for="optShowLive">받아쓴 글자를 화면에 보이기</label><input type="checkbox" class="switch" id="optShowLive"></div>
+    </div>
+    <div class="box set">
+      <span class="label">앱 잠금</span>
+      <div class="row"><input type="password" id="pinNew" inputmode="numeric" maxlength="8" placeholder="숫자 4~8자리" style="flex:1;min-width:0"><button class="btn" id="pinSet">설정</button><button class="btn" id="pinOff">해제</button></div>
+      <p class="hint" id="pinState"></p>
+    </div>
+    <div class="box set">
+      <span class="label">데이터</span>
+      <p class="hint" id="usage"></p>
+      <div class="row"><button class="btn" id="exportBtn">기록 내보내기</button><button class="btn" id="importBtn">가져오기</button><input type="file" id="importFile" accept="application/json" hidden></div>
+      <p class="hint">내보내기는 글 기록만 담습니다. 녹음은 기록 화면에서 하나씩 내려받을 수 있어요. 클라우드 저장은 다음 단계에서 연결합니다.</p>
+    </div>
+    <p class="hint">기도 알림은 폰의 시계 앱 알람을 쓰세요. 앱 알림은 클라우드 연결 후 추가됩니다.</p>
+  </div>
+</main>
+
+<nav class="tabs" aria-label="메뉴">
+  <button data-v="room" aria-current="true">기도실</button>
+  <button data-v="topics" aria-current="false">기도 제목</button>
+  <button data-v="log" aria-current="false">기록</button>
+  <button data-v="set" aria-current="false">설정</button>
+</nav>
+
+<div class="lock" id="lock" hidden>
+  <div class="cross-wrap" style="transform:scale(.5);height:130px" aria-hidden="true"><div class="cross"></div></div>
+  <label class="hint" for="pinIn">비밀번호를 입력하세요</label>
+  <input type="password" id="pinIn" inputmode="numeric" maxlength="8" autocomplete="off">
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const pad=n=>String(n).padStart(2,"0");
+const mmss=s=>`${pad(Math.floor(s/60))}:${pad(s%60)}`;
+const minText=s=>{const m=Math.round(s/60);return m<1?"1분 미만":m<60?`${m}분`:`${Math.floor(m/60)}시간 ${m%60}분`};
+const dayKey=d=>{d=new Date(d);return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`};
+const dateText=ts=>{const d=new Date(ts);return `${d.getMonth()+1}월 ${d.getDate()}일 (${"일월화수목금토"[d.getDay()]}) ${pad(d.getHours())}:${pad(d.getMinutes())}`};
+const shortDate=ts=>{const d=new Date(ts);return `${d.getMonth()+1}월 ${d.getDate()}일`};
+function toast(t){const el=$("#toast");el.textContent=t;el.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>el.hidden=true,2600)}
+const ls={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+
+/* ---------- 저장소 (IndexedDB) ---------- */
+let idb;
+function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open("gobang",2);r.onupgradeneeded=()=>{const d=r.result;["prayers","topics","audio","inter"].forEach(n=>d.objectStoreNames.contains(n)||d.createObjectStore(n,{keyPath:"id"}))};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+function tx(store,mode,fn){return new Promise((res,rej)=>{const t=idb.transaction(store,mode);const s=t.objectStore(store);const out=fn(s);t.oncomplete=()=>res(out instanceof IDBRequest?out.result:out);t.onerror=()=>rej(t.error)})}
+const put=(st,v)=>tx(st,"readwrite",s=>s.put(v));
+const del=(st,id)=>tx(st,"readwrite",s=>s.delete(id));
+const getOne=(st,id)=>tx(st,"readonly",s=>s.get(id));
+const getAll=st=>tx(st,"readonly",s=>s.getAll());
+
+let prayers=[],topics=[];
+async function loadAll(){prayers=(await getAll("prayers")).sort((a,b)=>b.startedAt-a.startedAt);topics=(await getAll("topics")).sort((a,b)=>(b.lastPrayedAt||0)-(a.lastPrayedAt||0));
+  const it=await getAll("inter");weekly=it.find(x=>x.id==="weekly")||{id:"weekly",plan:["","","","","","",""],log:{}};vows=it.filter(x=>x.kind==="vow").sort((a,b)=>b.createdAt-a.createdAt);renderAll()}
+
+/* ---------- 중보 ---------- */
+let vows=[],weekly={id:"weekly",plan:["","","","","","",""],log:{}};
+const WD="일월화수목금토";
+const today=()=>dayKey(Date.now());
+const dayN=v=>Math.floor((Date.parse(today())-Date.parse(v.start))/864e5)+1;
+const isActive=v=>{const n=dayN(v);return n>=1&&n<=v.days};
+function todayTargets(){
+  const t=today(),out=[];
+  vows.filter(isActive).forEach(v=>out.push({key:v.id,who:v.who,what:v.text,sub:`작정 ${dayN(v)}일째 / ${v.days}일`,done:!!(v.log||{})[t]}));
+  const names=(weekly.plan[new Date().getDay()]||"").split(",").map(s=>s.trim()).filter(Boolean);
+  names.forEach(n=>out.push({key:"w:"+n,who:n,what:"",sub:`${WD[new Date().getDay()]}요일 중보`,done:((weekly.log||{})[t]||[]).includes(n)}));
+  return out;
+}
+async function markInter(key,on){
+  const t=today();
+  if(key.startsWith("w:")){const n=key.slice(2);const l=new Set((weekly.log||{})[t]||[]);on?l.add(n):l.delete(n);weekly={...weekly,log:{...weekly.log,[t]:[...l]}};await put("inter",weekly)}
+  else{const v=vows.find(x=>x.id===key);if(!v)return;const log={...(v.log||{})};on?log[t]=true:delete log[t];Object.assign(v,{log});await put("inter",v)}
+}
+let seg="mine";
+document.querySelectorAll(".seg button").forEach(b=>b.onclick=()=>{seg=b.dataset.seg;document.querySelectorAll(".seg button").forEach(x=>x.setAttribute("aria-pressed",x===b));$("#mineBox").hidden=seg!=="mine";$("#interBox").hidden=seg!=="inter"});
+function renderInter(){
+  const tt=todayTargets(),d=new Date();
+  $("#todayLabel").textContent=`오늘의 중보 · ${d.getMonth()+1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일`;
+  $("#todayInter").innerHTML=tt.length?tt.map(x=>`<div class="inter"><button class="check" data-k="${esc(x.key)}" aria-pressed="${x.done}" aria-label="${esc(x.who)} 기도함">✓</button><div style="flex:1;min-width:0"><div class="who">${esc(x.who)}${x.what?` <span class="what">· ${esc(x.what)}</span>`:""}</div><div class="sub">${esc(x.sub)}</div></div></div>`).join("")
+    :`<div class="empty" style="padding:18px 0">오늘 정해진 중보 대상이 없어요.<br>작정 기도를 추가하거나 요일별 중보를 적어 보세요.</div>`;
+  $("#todayInter").querySelectorAll(".check").forEach(b=>b.onclick=async()=>{const on=b.getAttribute("aria-pressed")!=="true";await markInter(b.dataset.k,on);renderInter()});
+  $("#vowList").innerHTML=vows.length?vows.map(v=>{const n=dayN(v),cnt=Object.keys(v.log||{}).length,ended=n>v.days,wait=n<1;
+    return `<div class="vow ${ended?"done":""}"><div class="set-row"><div><div class="who">${esc(v.who)} <span class="what">· ${esc(v.text)}</span></div>
+      <div class="sub">${wait?`${shortDate(Date.parse(v.start))} 시작 예정`:ended?`${v.days}일 작정 마침 · ${cnt}일 기도`:`${n}일째 / ${v.days}일 · ${cnt}일 기도`}</div></div>
+      <button class="link" data-vdel="${v.id}">삭제</button></div><div class="bar"><i style="width:${Math.min(100,Math.max(0,(ended?v.days:n-1+((v.log||{})[today()]?1:0))/v.days*100))}%"></i></div></div>`}).join("")
+    :`<p class="hint" style="padding:8px 0">기간을 정해 한 사람이나 한 제목을 품고 기도해 보세요.</p>`;
+  $("#vowList").querySelectorAll("[data-vdel]").forEach(b=>b.onclick=async()=>{if(!b.dataset.sure){b.dataset.sure=1;b.textContent="정말 삭제";return}await del("inter",b.dataset.vdel);await loadAll()});
+  const order=[1,2,3,4,5,6,0];
+  if(!$("#weekly").contains(document.activeElement))$("#weekly").innerHTML=order.map(i=>`<div class="wd ${i===d.getDay()?"now":""}"><b>${WD[i]}</b><input type="text" id="wd-${i}" value="${esc(weekly.plan[i]||"")}" placeholder="${["교회","가족","교회","일터","나라와 민족","친구","선교사"][i]}" aria-label="${WD[i]}요일 중보 대상"></div>`).join("");
+  $("#weekly").querySelectorAll("input").forEach(inp=>inp.onchange=async()=>{const i=+inp.id.slice(3);const plan=[...weekly.plan];plan[i]=inp.value;weekly={...weekly,plan};await put("inter",weekly);renderInter();renderTodayHint()});
+  renderTodayHint();
+}
+function renderTodayHint(){const tt=todayTargets(),h=$("#todayHint");h.hidden=!tt.length;if(!tt.length)return;
+  h.innerHTML=`오늘의 중보 · `+tt.slice(0,4).map(x=>`<b>${esc(x.who)}</b>`).join(", ")+(tt.length>4?` 외 ${tt.length-4}`:"")+` <span>(${tt.filter(x=>x.done).length}/${tt.length})</span>`}
+let vowDays=40;
+document.querySelectorAll("#vowDays button").forEach(b=>b.onclick=()=>{vowDays=+b.dataset.d;document.querySelectorAll("#vowDays button").forEach(x=>x.classList.toggle("on",x===b))});
+$("#vowAddBtn").onclick=()=>{$("#vowForm").hidden=false;$("#vowStart").value=today();$("#vowWho").focus()};
+$("#vowCancel").onclick=()=>{$("#vowForm").hidden=true};
+$("#vowSave").onclick=async()=>{const who=$("#vowWho").value.trim(),text=$("#vowText").value.trim();if(!who)return toast("누구를 위한 기도인지 적어 주세요");
+  await put("inter",{id:uid(),kind:"vow",who,text,days:vowDays,start:$("#vowStart").value||today(),log:{},createdAt:Date.now()});
+  $("#vowWho").value="";$("#vowText").value="";$("#vowForm").hidden=true;await loadAll();toast(`${vowDays}일 작정 기도를 시작했어요`)};
+
+/* ---------- 설정 ---------- */
+const keys=()=>({openai:ls.get("k-openai",""),claude:ls.get("k-claude","")});
+function renderKeys(){const k=keys();$("#kOpenai").value=k.openai;$("#kClaude").value=k.claude;$("#keyState").textContent=[k.openai?"전사 연결됨":"",k.claude?"정리 연결됨":""].filter(Boolean).join(" · ")}
+$("#saveKeys").onclick=()=>{ls.set("k-openai",$("#kOpenai").value.trim());ls.set("k-claude",$("#kClaude").value.trim());renderKeys();toast("키를 저장했어요")};
+$("#optLive").checked=ls.get("opt-live",true);$("#optLive").onchange=e=>ls.set("opt-live",e.target.checked);
+$("#optShowLive").checked=ls.get("opt-showlive",false);$("#optShowLive").onchange=e=>ls.set("opt-showlive",e.target.checked);
+
+/* ---------- 탭 ---------- */
+function show(v){for(const k of ["room","topics","log","set"])$("#v-"+k).hidden=k!==v;document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.v===v));window.scrollTo(0,0);if(v==="set")renderUsage()}
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>show(b.dataset.v));
+
+/* ---------- 배경음 (직접 합성) ---------- */
+let soundMode=ls.get("sound","off"),actx=null,soundNodes=[];
+function renderSound(){document.querySelectorAll(".sound button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.s===soundMode))}
+document.querySelectorAll(".sound button").forEach(b=>b.onclick=()=>{soundMode=b.dataset.s;ls.set("sound",soundMode);renderSound();if(session){stopSound();startSound()}});
+function startSound(){
+  if(soundMode==="off")return;
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume();
+    const master=actx.createGain();master.gain.value=0;master.connect(actx.destination);
+    master.gain.linearRampToValueAtTime(soundMode==="rain"?.22:.08,actx.currentTime+3);
+    if(soundMode==="rain"){
+      const len=actx.sampleRate*4,buf=actx.createBuffer(1,len,actx.sampleRate),d=buf.getChannelData(0);let last=0;
+      for(let i=0;i<len;i++){const w=Math.random()*2-1;last=(last+.02*w)/1.02;d[i]=last*3.5}
+      const src=actx.createBufferSource();src.buffer=buf;src.loop=true;
+      const f=actx.createBiquadFilter();f.type="lowpass";f.frequency.value=900;
+      src.connect(f).connect(master);src.start();soundNodes.push(src);
+    }else{
+      [110,164.81,220,277.18].forEach((hz,i)=>{
+        const o=actx.createOscillator();o.type="sine";o.frequency.value=hz;
+        const g=actx.createGain();g.gain.value=.25;
+        const l=actx.createOscillator();l.frequency.value=.05+i*.03;const lg=actx.createGain();lg.gain.value=.18;
+        l.connect(lg).connect(g.gain);o.connect(g).connect(master);o.start();l.start();soundNodes.push(o,l);
+      });
+    }
+    soundNodes.master=master;
+  }catch(e){}
+}
+function stopSound(){try{const m=soundNodes.master;if(m&&actx){m.gain.cancelScheduledValues(actx.currentTime);m.gain.setValueAtTime(m.gain.value,actx.currentTime);m.gain.linearRampToValueAtTime(0,actx.currentTime+1.5)}const n=soundNodes;setTimeout(()=>n.forEach(x=>{try{x.stop()}catch(e){}}),1600)}catch(e){}soundNodes=[]}
+
+/* ---------- 기도 (녹음 + 실시간 받아쓰기) ---------- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let session=null,draft=null;
+function setStatus(t,rec){$("#status").innerHTML=t?`${rec?'<span class="dot"></span>':""}${esc(t)}`:""}
+$("#startBtn").onclick=()=>session?finish():begin();
+
+async function begin(){
+  let stream;
+  try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}})}
+  catch(e){toast("마이크 권한이 필요해요. 주소창 왼쪽 자물쇠에서 마이크를 허용해 주세요.");return}
+  session={start:Date.now(),stream,chunks:[],final:"",interim:""};
+  const mime=["audio/webm;codecs=opus","audio/webm","audio/mp4"].find(m=>window.MediaRecorder&&MediaRecorder.isTypeSupported(m))||"";
+  try{
+    session.rec=new MediaRecorder(stream,mime?{mimeType:mime,audioBitsPerSecond:24000}:{});
+    session.rec.ondataavailable=e=>e.data&&e.data.size&&session&&session.chunks.push(e.data);
+    session.rec.start(5000);
+  }catch(e){toast("이 브라우저는 녹음을 지원하지 않아요");stream.getTracks().forEach(t=>t.stop());session=null;return}
+  document.body.classList.add("praying");
+  $("#startBtn").textContent="아멘 · 기도 마치기";$("#verse").hidden=true;
+  setStatus("녹음 중",true);
+  $("#clock").textContent="00:00";
+  session.timer=setInterval(()=>$("#clock").textContent=mmss(Math.floor((Date.now()-session.start)/1000)),1000);
+  try{navigator.wakeLock?.request("screen").then(w=>session&&(session.wake=w)).catch(()=>{})}catch(e){}
+  startSound();
+  if(ls.get("opt-live",true)&&SR) startSR();
+  $("#live").hidden=!ls.get("opt-showlive",false);$("#live").innerHTML="";
+}
+function startSR(){
+  let r;try{r=new SR()}catch(e){return}
+  r.lang="ko-KR";r.continuous=true;r.interimResults=true;
+  r.onresult=e=>{if(!session)return;let im="";for(let i=e.resultIndex;i<e.results.length;i++){const x=e.results[i];if(x.isFinal)session.final+=(session.final?" ":"")+x[0].transcript.trim();else im+=x[0].transcript}session.interim=im;$("#live").innerHTML=esc(session.final)+(im?` <i>${esc(im)}</i>`:"");$("#live").scrollTop=1e9};
+  r.onerror=e=>{if(session&&["not-allowed","service-not-allowed","audio-capture"].includes(e.error))session.srOff=true};
+  r.onend=()=>{if(session&&!session.srOff&&session.sr===r){try{r.start()}catch(e){}}};
+  session.sr=r;try{r.start()}catch(e){}
+}
+async function finish(){
+  const s=session;session=null;
+  clearInterval(s.timer);stopSound();
+  try{s.sr&&(s.sr.onend=null,s.sr.stop())}catch(e){}
+  try{s.wake&&s.wake.release()}catch(e){}
+  const blob=await new Promise(res=>{s.rec.onstop=()=>res(new Blob(s.chunks,{type:s.rec.mimeType||"audio/webm"}));try{s.rec.stop()}catch(e){res(new Blob(s.chunks))}});
+  s.stream.getTracks().forEach(t=>t.stop());
+  document.body.classList.remove("praying");
+  $("#startBtn").textContent="기도 시작";$("#verse").hidden=false;setStatus("");$("#live").hidden=true;
+  const dur=Math.max(1,Math.round((Date.now()-s.start)/1000));
+  draft={id:uid(),startedAt:s.start,durationSec:dur,audio:blob,live:(s.final+" "+s.interim).trim(),topics:[],classes:null,verses:[]};
+  openReview();
+  await processDraft();
+}
+
+/* ---------- 정리 화면 ---------- */
+const STEP=["녹음 저장","음성을 글로 옮기기","AI 정리"];
+function setStep(i,state,note){const li=$("#steps").children[i];li.className=state;li.textContent=STEP[i]+(note?` · ${note}`:"")}
+function openReview(){
+  document.body.classList.add("reviewing");
+  $("#room").hidden=true;$("#review").hidden=false;window.scrollTo(0,0);
+  $("#reviewMeta").textContent=`${dateText(draft.startedAt)} · ${minText(draft.durationSec)}`;
+  $("#steps").innerHTML=STEP.map(t=>`<li>${t}</li>`).join("");
+  const a=$("#reviewAudio");if(draft.audio&&draft.audio.size){a.src=URL.createObjectURL(draft.audio);a.hidden=false}else a.hidden=true;
+  $("#reviewText").value=draft.live;$("#reviewSummary").value="";$("#reviewNotice").hidden=true;
+  draft.targets=todayTargets();draft.interSel=new Set(draft.targets.filter(x=>x.done).map(x=>x.key));
+  renderClasses();renderTopicEdit();renderInterChips();
+}
+function renderInterChips(){
+  $("#interReview").hidden=!draft.targets.length;
+  $("#interChips").innerHTML=draft.targets.map(x=>`<button class="chip-btn" data-k="${esc(x.key)}" aria-pressed="${draft.interSel.has(x.key)}">${draft.interSel.has(x.key)?"✓ ":""}${esc(x.who)}</button>`).join("");
+  $("#interChips").querySelectorAll("button").forEach(b=>b.onclick=()=>{const k=b.dataset.k;draft.interSel.has(k)?draft.interSel.delete(k):draft.interSel.add(k);renderInterChips()});
+}
+async function processDraft(){
+  const k=keys();
+  setStep(0,draft.audio&&draft.audio.size?"ok":"skip",draft.audio&&draft.audio.size?`${(draft.audio.size/1048576).toFixed(1)}MB`:"녹음 없음");
+  if(k.openai&&draft.audio&&draft.audio.size){
+    setStep(1,"run");
+    try{$("#reviewText").value=await transcribe(draft.audio,k.openai);setStep(1,"ok")}
+    catch(e){setStep(1,"skip",draft.live?"실패, 실시간 글자 사용":"실패");toast(errText(e))}
+  }else setStep(1,draft.live?"ok":"skip",draft.live?"실시간 받아쓰기":"글 없음 · 직접 적거나 전사 키 연결");
+  await organize();
+}
+async function organize(){
+  const k=keys(),text=$("#reviewText").value.trim();
+  if(!k.claude){setStep(2,"skip","Claude 키 연결 시 자동");$("#aiBtn").hidden=true;return}
+  if(!text){setStep(2,"skip","기도 내용이 비어 있음");return}
+  $("#aiBtn").hidden=false;$("#aiBtn").disabled=true;setStep(2,"run");
+  try{
+    const r=await organizeAI(text,k.claude);
+    $("#reviewSummary").value=r.summary||"";
+    draft.classes={thanks:r.thanks||[],repent:r.repent||[],ask:r.ask||[]};
+    draft.verses=(r.verses||[]).slice(0,2);
+    draft.topics=(r.topics||[]).slice(0,7).map(t=>({text:String(t.text||t),matchId:t.match&&topics.some(x=>x.id===t.match)?t.match:null}));
+    (r.intercede||[]).forEach(k=>draft.targets.some(x=>x.key===k)&&draft.interSel.add(k));
+    renderClasses();renderTopicEdit();renderInterChips();setStep(2,"ok");
+  }catch(e){setStep(2,"skip","실패");toast(errText(e))}
+  finally{$("#aiBtn").disabled=false}
+}
+$("#aiBtn").onclick=organize;
+function renderClasses(){
+  const c=draft.classes;$("#classBox").hidden=!c;
+  if(c)$("#classes").innerHTML=[["감사",c.thanks],["회개",c.repent],["간구",c.ask]].filter(([,l])=>l&&l.length).map(([n,l])=>`<div class="cls"><h4>${n} ${l.length}</h4><ul>${l.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`).join("")||`<p class="hint">분류할 내용이 없어요</p>`;
+  $("#verseBox").hidden=!draft.verses.length;
+  $("#verses").innerHTML=draft.verses.map(v=>`<div class="vs"><b>${esc(v.ref)}</b><span>${esc(v.why)}</span></div>`).join("");
+}
+function renderTopicEdit(){
+  const box=$("#topicEdit");
+  if(!draft.topics.length){box.innerHTML=`<p class="hint">기도 제목이 없어요. 직접 추가하거나 AI 정리를 기다리세요.</p>`;return}
+  box.innerHTML=draft.topics.map((t,i)=>`<div class="topic-edit"><input type="text" id="te-${i}" value="${esc(t.text)}" aria-label="기도 제목 ${i+1}">${t.matchId?'<span class="again">다시 기도함</span>':""}<button class="x" data-i="${i}" aria-label="삭제">×</button></div>`).join("");
+  box.querySelectorAll("input").forEach((inp,i)=>inp.oninput=()=>draft.topics[i].text=inp.value);
+  box.querySelectorAll(".x").forEach(b=>b.onclick=()=>{draft.topics.splice(+b.dataset.i,1);renderTopicEdit()});
+}
+$("#addTopic").onclick=()=>{draft.topics.push({text:"",matchId:null});renderTopicEdit();const l=$("#topicEdit").querySelectorAll("input");l[l.length-1]?.focus()};
+
+$("#saveBtn").onclick=async()=>{
+  const btn=$("#saveBtn");btn.disabled=true;
+  try{
+    const now=draft.startedAt,topicIds=[];
+    for(const t of draft.topics){
+      const text=t.text.trim();if(!text)continue;
+      let tp=t.matchId&&topics.find(x=>x.id===t.matchId);
+      if(tp){tp={...tp,prayedCount:(tp.prayedCount||1)+1,lastPrayedAt:now,prayerIds:[...(tp.prayerIds||[]),draft.id]}}
+      else tp={id:uid(),text,status:"waiting",createdAt:now,lastPrayedAt:now,prayedCount:1,answer:"",answeredAt:null,prayerIds:[draft.id]};
+      await put("topics",tp);topicIds.push(tp.id);
+    }
+    for(const k of draft.interSel)await markInter(k,true);
+    let audioId=null;
+    if(draft.audio&&draft.audio.size){audioId=draft.id;await put("audio",{id:audioId,blob:draft.audio,type:draft.audio.type})}
+    await put("prayers",{id:draft.id,startedAt:draft.startedAt,durationSec:draft.durationSec,transcript:$("#reviewText").value.trim(),summary:$("#reviewSummary").value.trim(),classes:draft.classes,verses:draft.verses,topicIds,audioId});
+    closeReview();await loadAll();toast("기도를 저장했어요");
+  }catch(e){$("#reviewNotice").hidden=false;$("#reviewNotice").textContent="저장하지 못했어요. 폰 저장 공간을 확인해 주세요."}
+  finally{btn.disabled=false}
+};
+$("#discardBtn").onclick=()=>{const b=$("#discardBtn");if(b.dataset.sure){closeReview();toast("저장하지 않았어요");return}b.dataset.sure="1";b.textContent="녹음까지 버리기";setTimeout(()=>{delete b.dataset.sure;b.textContent="저장 안 함"},3000)};
+function closeReview(){const a=$("#reviewAudio");if(a.src)URL.revokeObjectURL(a.src);a.removeAttribute("src");draft=null;document.body.classList.remove("reviewing");$("#review").hidden=true;$("#room").hidden=false;$("#clock").textContent="00:00"}
+
+/* ---------- AI 호출 (폰에서 바로) ---------- */
+function errText(e){const m=String(e&&e.message||e);if(/401|invalid.*key|authentication/i.test(m))return "API 키가 맞지 않아요. 설정에서 확인해 주세요.";if(/429|rate/i.test(m))return "요청이 많아요. 잠시 후 다시 해 주세요.";if(/Failed to fetch|NetworkError/i.test(m))return "인터넷 연결을 확인해 주세요. 녹음은 저장할 수 있어요.";return "처리 중 문제가 생겼어요: "+m.slice(0,80)}
+async function transcribe(blob,key){
+  const ext=(blob.type.includes("mp4")?"m4a":"webm");
+  const fd=new FormData();fd.append("file",blob,"prayer."+ext);fd.append("model","whisper-1");fd.append("language","ko");
+  fd.append("prompt","하나님 아버지, 예수님의 이름으로 기도합니다. 아멘.");
+  const r=await fetch("https://api.openai.com/v1/audio/transcriptions",{method:"POST",headers:{Authorization:"Bearer "+key},body:fd});
+  if(!r.ok)throw new Error(r.status+" "+(await r.text()).slice(0,120));
+  return (await r.json()).text.trim();
+}
+async function claude(prompt,key,max=1500){
+  const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model:"claude-haiku-5-5",max_tokens:max,messages:[{role:"user",content:prompt}]})});
+  if(!r.ok)throw new Error(r.status+" "+(await r.text()).slice(0,120));
+  const j=await r.json();return j.content.map(c=>c.text||"").join("").trim();
+}
+async function organizeAI(text,key){
+  const open=topics.filter(t=>t.status==="waiting").slice(0,40).map(t=>({id:t.id,text:t.text}));
+  const out=await claude(`아래는 한 그리스도인이 소리 내어 드린 기도를 받아 적은 글입니다. 받아쓰기 오류가 있을 수 있습니다.
+규칙: 기도한 사람의 표현을 존중하고, 판단이나 조언을 덧붙이지 마세요. 말씀은 개역개정 기준 장절만 정확히 적고 본문은 쓰지 마세요. 확실하지 않은 장절은 넣지 마세요.
+기존에 기다리는 기도 제목 목록이 주어집니다. 이번 기도 제목이 기존 제목과 같은 내용이면 "match"에 그 id를 넣으세요.
+
+다음 JSON 하나로만 답하세요:
+{"summary":"기도 전체 2~3문장 요약, '~를 위해 기도함' 같은 기록체",
+ "topics":[{"text":"구체적 기도 제목 짧게","match":"기존 id 또는 null"}],
+ "thanks":["감사한 내용 한 줄씩"],"repent":["회개한 내용 한 줄씩"],"ask":["간구한 내용 한 줄씩"],
+ "verses":[{"ref":"예: 빌립보서 4:6-7","why":"이 기도와 이어지는 이유 한 문장"}],
+ "intercede":["이 기도에서 실제로 중보한 오늘의 중보 대상의 key"]}
+topics 최대 7개, verses 1~2개. intercede에는 기도 중 그 대상(사람·공동체)을 위해 기도한 경우만 넣으세요.
+
+기존 기도 제목: ${JSON.stringify(open)}
+오늘의 중보 대상: ${JSON.stringify((draft&&draft.targets||[]).map(x=>({key:x.key,who:x.who,what:x.what})))}
+
+기도:
+"""${text}"""`,key);
+  const m=out.match(/\{[\s\S]*\}/);if(!m)throw new Error("정리 결과를 읽지 못함");
+  return JSON.parse(m[0]);
+}
+
+/* ---------- 기도 제목 화면 ---------- */
+let topicFilter="waiting",openAnswer=null;
+document.querySelectorAll(".filters button").forEach(b=>b.onclick=()=>{topicFilter=b.dataset.f;document.querySelectorAll(".filters button").forEach(x=>x.setAttribute("aria-pressed",x===b));renderTopics()});
+function renderTopics(){
+  const list=topics.filter(t=>topicFilter==="all"||t.status===topicFilter);
+  const el=$("#topicList");
+  if(!list.length){el.innerHTML=`<div class="empty">${topicFilter==="answered"?"응답받은 기도 제목이 아직 없어요.":"기도를 마치고 저장하면<br>기도 제목이 이곳에 모입니다."}</div>`;return}
+  el.innerHTML=list.map(t=>{
+    const ok=t.status==="answered",editing=openAnswer===t.id;
+    return `<div class="topic"><div class="topic-line"><span class="state ${ok?"ok":""}">${ok?"응답":"기다림"}</span><div class="topic-text">${esc(t.text)}
+      <div class="from">${shortDate(t.createdAt)}부터 · ${t.prayedCount||1}번 기도${ok&&t.answeredAt?` · ${shortDate(t.answeredAt)} 응답`:""}</div></div></div>
+      ${ok&&t.answer&&!editing?`<div class="answer">${esc(t.answer)}</div>`:""}
+      ${editing?`<div class="answer-form"><textarea id="ans">${esc(t.answer)}</textarea><div class="row"><button class="btn primary" data-save="${t.id}">응답 저장</button>${ok?`<button class="btn" data-undo="${t.id}">기다리는 중으로</button>`:""}<button class="btn" data-close="1">닫기</button><button class="link" data-del="${t.id}">제목 삭제</button></div></div>`
+        :`<div><button class="link" data-open="${t.id}">${ok?"응답 수정":"응답 기록하기"}</button></div>`}</div>`}).join("");
+  el.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>{openAnswer=b.dataset.open;renderTopics();const a=$("#ans");a&&(a.placeholder="하나님이 어떻게 응답하셨는지 적어 보세요",a.focus())});
+  el.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>{openAnswer=null;renderTopics()});
+  el.querySelectorAll("[data-save]").forEach(b=>b.onclick=()=>saveAnswer(b.dataset.save,true));
+  el.querySelectorAll("[data-undo]").forEach(b=>b.onclick=()=>saveAnswer(b.dataset.undo,false));
+  el.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{if(!b.dataset.sure){b.dataset.sure=1;b.textContent="정말 삭제";return}await del("topics",b.dataset.del);openAnswer=null;await loadAll();toast("삭제했어요")});
+}
+async function saveAnswer(id,answered){
+  const t={...topics.find(x=>x.id===id)};
+  if(answered){t.answer=($("#ans")?.value||"").trim();t.status="answered";t.answeredAt=t.answeredAt||Date.now()}else{t.status="waiting";t.answeredAt=null}
+  await put("topics",t);openAnswer=null;await loadAll();toast(answered?"응답을 기록했어요":"기다리는 중으로 옮겼어요");
+}
+
+/* ---------- 기록 화면 ---------- */
+function renderLog(){
+  const secs=prayers.reduce((a,p)=>a+(p.durationSec||0),0),days=new Set(prayers.map(p=>dayKey(p.startedAt)));
+  let streak=0;const d=new Date();if(!days.has(dayKey(d)))d.setDate(d.getDate()-1);while(days.has(dayKey(d))){streak++;d.setDate(d.getDate()-1)}
+  const ans=topics.filter(t=>t.status==="answered").length;
+  $("#stats").innerHTML=[[prayers.length+"번","기도 횟수"],[minText(secs),"누적 기도 시간"],[streak+"일","연속 기도"],[`${ans} / ${topics.length}`,"응답받은 제목"]].map(([b,s])=>`<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
+  const per={};prayers.forEach(p=>{const k=dayKey(p.startedAt);per[k]=(per[k]||0)+(p.durationSec||0)});
+  let cells="";for(let i=29;i>=0;i--){const x=new Date();x.setDate(x.getDate()-i);const s=per[dayKey(x)]||0;cells+=`<i class="${s===0?"":s<600?"l1":s<1800?"l2":"l3"}" title="${x.getMonth()+1}/${x.getDate()} ${s?minText(s):"기도 없음"}"></i>`}
+  $("#grid30").innerHTML=cells;
+  const months=[...new Set(prayers.map(p=>dayKey(p.startedAt).slice(0,7)))];const cur=dayKey(Date.now()).slice(0,7);if(!months.includes(cur))months.unshift(cur);
+  const sel=$("#monthSel"),keep=sel.value;sel.innerHTML=months.map(m=>`<option value="${m}">${m.slice(0,4)}년 ${+m.slice(5)}월</option>`).join("");if(months.includes(keep))sel.value=keep;
+  showMonth();
+  const el=$("#logList");
+  if(!prayers.length){el.innerHTML=`<div class="empty">아직 기록된 기도가 없어요.<br>기도실에서 ‘기도 시작’을 눌러 보세요.</div>`;return}
+  const tmap=Object.fromEntries(topics.map(t=>[t.id,t]));
+  el.innerHTML=prayers.map(p=>{const tl=(p.topicIds||[]).map(i=>tmap[i]).filter(Boolean);const c=p.classes;
+    return `<div class="item"><div class="item-head"><span class="when">${dateText(p.startedAt)}</span><span class="when">${minText(p.durationSec||0)}</span></div>
+    ${p.summary?`<div style="font-size:14px">${esc(p.summary)}</div>`:""}
+    ${tl.length?`<div class="chips">${tl.map(t=>`<span class="chip ${t.status==="answered"?"ok":""}">${esc(t.text)}</span>`).join("")}</div>`:""}
+    <details><summary>자세히 보기</summary><div class="body">
+      ${p.audioId?`<div class="row"><button class="btn" data-play="${p.audioId}">녹음 듣기</button><button class="link" data-dl="${p.audioId}">녹음 내려받기</button></div><div id="pl-${p.audioId}"></div>`:""}
+      ${c?`<div class="classes">${[["감사",c.thanks],["회개",c.repent],["간구",c.ask]].filter(([,l])=>l&&l.length).map(([n,l])=>`<div class="cls"><h4>${n}</h4><ul>${l.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`).join("")}</div>`:""}
+      ${(p.verses||[]).length?`<div class="verses">${p.verses.map(v=>`<div class="vs"><b>${esc(v.ref)}</b><span>${esc(v.why)}</span></div>`).join("")}</div>`:""}
+      ${p.transcript?`<p>${esc(p.transcript)}</p>`:""}
+      <div><button class="link" data-pdel="${p.id}">이 기도 삭제</button></div>
+    </div></details></div>`}).join("");
+  el.querySelectorAll("[data-play]").forEach(b=>b.onclick=async()=>{const a=await getOne("audio",b.dataset.play);if(!a)return toast("녹음을 찾지 못했어요");const box=document.getElementById("pl-"+b.dataset.play);box.innerHTML="";const au=document.createElement("audio");au.controls=true;au.src=URL.createObjectURL(a.blob);box.append(au);au.play().catch(()=>{})});
+  el.querySelectorAll("[data-dl]").forEach(b=>b.onclick=async()=>{const a=await getOne("audio",b.dataset.dl);const p=prayers.find(x=>x.audioId===b.dataset.dl);if(a)download(a.blob,`기도_${dayKey(p.startedAt)}_${pad(new Date(p.startedAt).getHours())}${pad(new Date(p.startedAt).getMinutes())}.${a.type.includes("mp4")?"m4a":"webm"}`)});
+  el.querySelectorAll("[data-pdel]").forEach(b=>b.onclick=async()=>{if(!b.dataset.sure){b.dataset.sure=1;b.textContent="녹음까지 정말 삭제";return}const p=prayers.find(x=>x.id===b.dataset.pdel);await del("prayers",p.id);if(p.audioId)await del("audio",p.audioId);await loadAll();toast("삭제했어요")});
+}
+function monthData(m){const ps=prayers.filter(p=>dayKey(p.startedAt).startsWith(m));const ids=new Set(ps.flatMap(p=>p.topicIds||[]));const ts=topics.filter(t=>ids.has(t.id));const ans=topics.filter(t=>t.answeredAt&&dayKey(t.answeredAt).startsWith(m));return {ps,ts,ans}}
+function showMonth(){const m=$("#monthSel").value;const saved=ls.get("review-"+m,null);const {ps,ts,ans}=monthData(m);
+  const base=`${ps.length}번, ${minText(ps.reduce((a,p)=>a+p.durationSec,0))} 기도 · 기도 제목 ${ts.length}개 · 응답 ${ans.length}개`+(ts.length?`\n가장 많이 기도한 제목: ${[...ts].sort((a,b)=>(b.prayedCount||1)-(a.prayedCount||1)).slice(0,3).map(t=>t.text).join(", ")}`:"");
+  $("#monthText").textContent=saved?base+"\n\n"+saved:base;$("#monthBtn").textContent=saved?"다시 돌아보기":"AI로 돌아보기";$("#monthBtn").hidden=!keys().claude}
+$("#monthSel").onchange=showMonth;
+$("#monthBtn").onclick=async()=>{const m=$("#monthSel").value,k=keys().claude;const {ps,ts,ans}=monthData(m);if(!ps.length)return toast("이 달의 기도 기록이 없어요");
+  const b=$("#monthBtn");b.disabled=true;b.textContent="돌아보는 중…";
+  try{const txt=await claude(`한 그리스도인의 한 달 기도 기록입니다. 판단이나 조언 없이, 담담한 기록체로 5~7문장 돌아보기를 써 주세요: 자주 기도한 제목, 응답받은 제목, 감사·회개·간구의 흐름 변화, 꾸준함. 마크다운 없이 평문으로.
+기도: ${JSON.stringify(ps.map(p=>({date:dayKey(p.startedAt),min:Math.round(p.durationSec/60),summary:p.summary,classes:p.classes})))}
+제목: ${JSON.stringify(ts.map(t=>({text:t.text,status:t.status,count:t.prayedCount})))}
+이 달 응답: ${JSON.stringify(ans.map(t=>({text:t.text,answer:t.answer})))}`,k,800);ls.set("review-"+m,txt);showMonth()}
+  catch(e){toast(errText(e))}finally{b.disabled=false;if(b.textContent==="돌아보는 중…")b.textContent="AI로 돌아보기"}};
+function renderAll(){renderTopics();renderLog();renderInter()}
+
+/* ---------- 데이터 ---------- */
+function download(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000)}
+$("#exportBtn").onclick=()=>download(new Blob([JSON.stringify({app:"gobang",version:1,exportedAt:new Date().toISOString(),prayers,topics,inter:[weekly,...vows]},null,1)],{type:"application/json"}),`골방기도실_기록_${dayKey(Date.now())}.json`);
+$("#importBtn").onclick=()=>$("#importFile").click();
+$("#importFile").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const j=JSON.parse(await f.text());if(j.app!=="gobang")throw 0;for(const p of j.prayers||[])await put("prayers",p);for(const t of j.topics||[])await put("topics",t);for(const x of j.inter||[])await put("inter",x);await loadAll();toast(`기도 ${j.prayers.length}개를 가져왔어요`)}catch(err){toast("골방 기도실에서 내보낸 파일이 아니에요")}e.target.value=""};
+async function renderUsage(){try{const e=await navigator.storage.estimate();const persisted=await navigator.storage.persisted?.();$("#usage").textContent=`이 폰에 ${(e.usage/1048576).toFixed(1)}MB 사용 중 · ${persisted?"폰이 임의로 지우지 않도록 보호됨":"보호 요청 중"}`;if(!persisted)navigator.storage.persist?.()}catch(e){$("#usage").textContent=""}}
+
+/* ---------- 앱 잠금 ---------- */
+async function hash(s){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode("gobang:"+s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}
+function renderPin(){$("#pinState").textContent=ls.get("pin",null)?"잠금이 켜져 있어요. 앱을 열 때마다 비밀번호를 묻습니다.":"잠금이 꺼져 있어요."}
+$("#pinSet").onclick=async()=>{const v=$("#pinNew").value;if(!/^\d{4,8}$/.test(v))return toast("숫자 4~8자리로 정해 주세요");ls.set("pin",await hash(v));$("#pinNew").value="";renderPin();toast("잠금을 설정했어요")};
+$("#pinOff").onclick=()=>{ls.set("pin",null);renderPin();toast("잠금을 해제했어요")};
+async function checkLock(){const h=ls.get("pin",null);if(!h)return;$("#lock").hidden=false;const inp=$("#pinIn");inp.focus();inp.oninput=async()=>{if(inp.value.length>=4&&await hash(inp.value)===h){$("#lock").hidden=true;inp.value=""}}}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&!session&&!draft)checkLock()});
+
+/* ---------- 시작 ---------- */
+renderSound();renderKeys();renderPin();
+(async()=>{
+  try{idb=await openDB();await loadAll()}catch(e){toast("이 브라우저에서는 기록을 저장할 수 없어요")}
+  checkLock();
+  if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(()=>{});
+})();
+</script>
+</body>
+</html>
