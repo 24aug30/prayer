@@ -90,6 +90,22 @@ audio{width:100%;height:40px}
 .kw-add{display:flex;gap:8px;align-items:center;margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
 .kw-add input{flex:1;min-width:0;background:transparent;border:0;color:var(--fg);font:inherit;font-size:14px}
 .step-go{background:none;border:0;color:var(--light);font-size:12px;text-decoration:underline;padding:0 0 0 6px}
+.sec{display:flex;flex-direction:column;gap:4px}
+.sum-cats{display:flex;flex-direction:column;gap:6px}
+.cat{display:flex;gap:10px;align-items:flex-start;border-bottom:1px solid var(--line);padding:4px 0}
+.cat:last-of-type{border-bottom:0}
+.cat-l{flex:none;width:2.6em;font-size:12px;color:var(--muted);padding-top:4px}
+.cat-in{flex:1;min-width:0;background:transparent;border:0;color:var(--fg);font:inherit;font-size:14px;line-height:1.7;resize:none;padding:2px 0}
+.cat-in::placeholder{color:var(--faint)}
+.box textarea.cat-in{min-height:0;resize:none}
+.sum-list{display:flex;flex-direction:column;gap:6px;font-size:14px}
+.sum-g{display:flex;gap:10px;align-items:flex-start}
+.cat-tag{flex:none;font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 6px;margin-top:3px}
+.sum-g ul{margin:0;padding-left:1.1em;flex:1;min-width:0}
+.edit-in{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--fg);font:inherit;font-size:14px;padding:8px 10px;resize:vertical}
+.item.editing{background:rgba(233,207,152,.04);border:1px solid var(--line);border-radius:10px;padding:14px;margin:6px 0;gap:12px}
+.edit-box{display:flex;flex-direction:column;gap:8px}
+.sec-l{font-size:10.5px;letter-spacing:.12em;color:var(--faint)}
 .item-title{font-family:var(--serif);font-weight:700;font-size:16px}
 .chip.tag{border-style:dashed}
 
@@ -201,8 +217,7 @@ details p{white-space:pre-wrap;color:var(--muted);font-size:13px;margin:0}
     <div class="box"><span class="label">키워드 · ×로 빼기</span><div class="chips" id="kwChips"></div>
       <div class="kw-add"><input type="text" id="kwIn" placeholder="키워드 직접 추가" aria-label="키워드 추가"><button class="link" id="kwAdd">추가</button></div></div>
     <div class="box"><label class="label" for="reviewText">기도 내용</label><textarea id="reviewText"></textarea></div>
-    <div class="box"><label class="label" for="reviewSummary">요약</label><textarea id="reviewSummary" style="min-height:60px" placeholder="AI가 연결되면 자동으로 채워집니다"></textarea></div>
-    <div class="box" id="classBox" hidden><span class="label">감사 · 회개 · 간구</span><div class="classes" id="classes"></div></div>
+    <div class="box"><span class="label">요약 · 한 줄에 하나씩</span><div class="sum-cats" id="sumCats"></div><textarea id="reviewSummary" hidden></textarea></div>
     <div class="box" id="verseBox" hidden><span class="label">함께 묵상할 말씀</span><div class="verses" id="verses"></div></div>
     <div class="box" id="interReview" hidden><span class="label">오늘의 중보 · 기도한 대상을 눌러 표시</span><div class="chips" id="interChips"></div></div>
     <div class="box"><span class="label">기도 제목</span><div id="topicEdit"></div><button class="link" id="addTopic">+ 제목 추가</button></div>
@@ -224,11 +239,7 @@ details p{white-space:pre-wrap;color:var(--muted);font-size:13px;margin:0}
     <button data-seg="inter" aria-pressed="false">중보</button>
   </div>
   <div id="mineBox">
-    <div class="filters" role="group" aria-label="보기">
-      <button data-f="waiting" aria-pressed="true">기다리는 중</button>
-      <button data-f="answered" aria-pressed="false">응답받음</button>
-      <button data-f="all" aria-pressed="false">전체</button>
-    </div>
+
     <div class="list" id="topicList"></div>
   </div>
   <div id="interBox" class="stack" hidden>
@@ -622,13 +633,13 @@ async function processPrayer(id){
       if(onScreen()){setStep(2,"run");$("#aiBtn").disabled=true}
       try{
         const r=await organizeAI(text,k.claude,p.targets||[]);
-        const ai={title:cleanTitle(r.title),keywords:[...new Set((r.keywords||[]).map(cleanKw).filter(Boolean))].slice(0,6),summary:r.summary||"",classes:{thanks:r.thanks||[],repent:r.repent||[],ask:r.ask||[]},verses:(r.verses||[]).slice(0,2),
+        const ai={title:cleanTitle(r.title),keywords:[...new Set((r.keywords||[]).map(cleanKw).filter(Boolean))].slice(0,6),summary:r.summary||"",classes:{thanks:r.thanks||[],repent:r.repent||[],ask:r.ask||[],others:r.others||[]},verses:(r.verses||[]).slice(0,2),
           topics:(r.topics||[]).slice(0,7).map(t=>({text:String(t.text||t),matchId:t.match&&topics.some(x=>x.id===t.match)?t.match:null})),
           intercede:(r.intercede||[]).filter(x=>(p.targets||[]).some(t=>t.key===x))};
         p=await getOne("prayers",id);if(!p)return;
         p=await patchPrayer(id,{ai,pending:{...p.pending,organize:false}});if(!p)return;
         if(onScreen()){
-          if(!draft.titleEdited&&ai.title){draft.title=ai.title;$("#reviewTitle").value=ai.title}if(!draft.kwEdited){draft.keywords=[...ai.keywords];renderKw()}$("#reviewSummary").value=ai.summary;draft.classes=ai.classes;draft.verses=ai.verses;draft.topics=ai.topics.map(t=>({...t}));
+          if(!draft.titleEdited&&ai.title){draft.title=ai.title;$("#reviewTitle").value=ai.title}if(!draft.kwEdited){draft.keywords=[...ai.keywords];renderKw()}$("#reviewSummary").value=ai.summary;if(!draft.sumEdited)draft.classes=ai.classes;draft.verses=ai.verses;draft.topics=ai.topics.map(t=>({...t}));
           ai.intercede.forEach(x=>draft.interSel.add(x));
           renderClasses();renderTopicEdit();renderInterChips();setStep(2,"ok");
         }else{await applyAI(id);toast("AI 정리가 끝나 기록에 반영했어요");loadAll()}
@@ -661,16 +672,23 @@ async function applyAI(id){
   if(!p.summary)patch.summary=ai.summary;
   if(ai.title&&(!p.title||!p.titleEdited))patch.title=ai.title;
   if(!(p.keywords||[]).length&&!p.kwEdited)patch.keywords=ai.keywords||[];
-  if(!p.classes)patch.classes=ai.classes;
+  if(!hasCats(p.classes))patch.classes=ai.classes;
   if(!(p.verses||[]).length)patch.verses=ai.verses;
   if(!(p.topicIds||[]).length)patch.topicIds=await saveTopics(ai.topics,id,p.startedAt);
   for(const x of ai.intercede)await markInter(x,true,dayKey(p.startedAt));
   await patchPrayer(id,patch);
 }
 $("#aiBtn").onclick=async()=>{if(!draft)return;await patchPrayer(draft.id,{pending:{transcribe:false,organize:true},ai:null,aiApplied:false});processPrayer(draft.id)};
+const CATS=[["thanks","감사"],["repent","회개"],["ask","간구"],["others","중보"]];
+const CAT_HINT={thanks:"감사한 일",repent:"회개한 일",ask:"나와 가정을 위한 간구",others:"다른 사람·교회·나라를 위한 기도"};
+const hasCats=c=>!!c&&CATS.some(([k])=>(c[k]||[]).length);
+const toLines=v=>v.split("\n").map(s=>s.replace(/^[•\-·*]\s*/,"").trim()).filter(Boolean);
+function catEditor(prefix,c){return CATS.map(([k,n])=>`<div class="cat"><label class="cat-l" for="${prefix}-${k}">${n}</label><textarea id="${prefix}-${k}" class="cat-in" rows="${Math.max(1,((c&&c[k])||[]).length)}" placeholder="${CAT_HINT[k]}">${esc(((c&&c[k])||[]).join("\n"))}</textarea></div>`).join("")}
+function bindCats(prefix,getC,setC,onEdit){CATS.forEach(([k])=>{const t=document.getElementById(prefix+"-"+k);if(!t)return;t.oninput=()=>{setC({...(getC()||{}),[k]:toLines(t.value)});t.rows=Math.max(1,t.value.split("\n").length);onEdit&&onEdit()}})}
+function catList(c){return `<div class="sum-list">${CATS.filter(([k])=>(c[k]||[]).length).map(([k,n])=>`<div class="sum-g"><span class="cat-tag">${n}</span><ul>${c[k].map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`).join("")}</div>`}
 function renderClasses(){
-  const c=draft.classes;$("#classBox").hidden=!c;
-  if(c)$("#classes").innerHTML=[["감사",c.thanks],["회개",c.repent],["간구",c.ask]].filter(([,l])=>l&&l.length).map(([n,l])=>`<div class="cls"><h4>${n} ${l.length}</h4><ul>${l.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`).join("")||`<p class="hint">분류할 내용이 없어요</p>`;
+  $("#sumCats").innerHTML=catEditor("sc",draft.classes)+(keys().claude&&!hasCats(draft.classes)?`<p class="hint">AI 정리가 끝나면 채워져요. 직접 적어도 됩니다.</p>`:"");
+  bindCats("sc",()=>draft.classes,c=>draft.classes=c,()=>draft.sumEdited=true);
   $("#verseBox").hidden=!draft.verses.length;
   $("#verses").innerHTML=draft.verses.map(v=>`<div class="vs"><b>${esc(v.ref)}</b><span>${esc(v.why)}</span></div>`).join("");
 }
@@ -697,7 +715,7 @@ $("#saveBtn").onclick=async()=>{
     const stillWorking=!!(p.pending&&(p.pending.transcribe||p.pending.organize));
     await put("prayers",{...p,title:$("#reviewTitle").value.trim()||defaultTitle(when),titleEdited:!!draft.titleEdited,keywords:[...draft.keywords],kwEdited:!!draft.kwEdited,
       transcript:$("#reviewText").value.trim()||p.transcript||"",textEdited:!!draft.textEdited,summary:$("#reviewSummary").value.trim(),
-      classes:draft.classes||p.classes||null,verses:draft.verses.length?draft.verses:(p.verses||[]),topicIds,confirmed:true,aiApplied:!!p.ai||!stillWorking});
+      classes:hasCats(draft.classes)?draft.classes:(p.classes||null),verses:draft.verses.length?draft.verses:(p.verses||[]),topicIds,confirmed:true,aiApplied:!!p.ai||!stillWorking});
     closeReview();await loadAll();
     toast(stillWorking?"저장했어요. 정리가 끝나면 자동으로 채워져요":"기도를 저장했어요");
   }catch(e){$("#reviewNotice").hidden=false;$("#reviewNotice").textContent="저장하지 못했어요. 폰 저장 공간을 확인해 주세요."}
@@ -738,10 +756,10 @@ async function organizeAI(text,key,targets){
  "keywords":["어떤 기도였는지 나타내는 짧은 명사 3~6개, # 없이 (예: 가족, 건강, 감사, 일터)"],
  "summary":"기도 전체 2~3문장 요약, '~를 위해 기도함' 같은 기록체",
  "topics":[{"text":"구체적 기도 제목 짧게","match":"기존 id 또는 null"}],
- "thanks":["감사한 내용 한 줄씩"],"repent":["회개한 내용 한 줄씩"],"ask":["간구한 내용 한 줄씩"],
+ "thanks":["감사한 내용"],"repent":["회개한 내용"],"ask":["나 자신과 가정을 위해 구한 내용"],"others":["다른 사람·교회·나라를 위해 중보한 내용"],
  "verses":[{"ref":"예: 빌립보서 4:6-7","why":"이 기도와 이어지는 이유 한 문장"}],
  "intercede":["이 기도에서 실제로 중보한 오늘의 중보 대상의 key"]}
-topics 최대 7개, verses 1~2개. intercede에는 기도 중 그 대상(사람·공동체)을 위해 기도한 경우만 넣으세요.
+thanks·repent·ask·others는 글머리표로 보여줄 짧은 한 줄(30자 이내)씩, 기도에 없는 항목은 빈 배열. topics 최대 7개, verses 1~2개. intercede에는 기도 중 그 대상(사람·공동체)을 위해 기도한 경우만 넣으세요.
 
 기존 기도 제목: ${JSON.stringify(open)}
 오늘의 중보 대상: ${JSON.stringify((targets||[]).map(x=>({key:x.key,who:x.who,what:x.what})))}
@@ -753,29 +771,33 @@ topics 최대 7개, verses 1~2개. intercede에는 기도 중 그 대상(사람�
 }
 
 /* ---------- 기도 제목 화면 ---------- */
-let topicFilter="waiting",openAnswer=null;
-document.querySelectorAll(".filters button").forEach(b=>b.onclick=()=>{topicFilter=b.dataset.f;document.querySelectorAll(".filters button").forEach(x=>x.setAttribute("aria-pressed",x===b));renderTopics()});
+let openAnswer=null,openRename=null;
 function renderTopics(){
-  const list=topics.filter(t=>topicFilter==="all"||t.status===topicFilter);
+  const list=topics;
   const el=$("#topicList");
-  if(!list.length){el.innerHTML=`<div class="empty">${topicFilter==="answered"?"응답받은 기도 제목이 아직 없어요.":"기도를 마치고 저장하면<br>기도 제목이 이곳에 모입니다."}</div>`;return}
+  if(!list.length){el.innerHTML=`<div class="empty">기도를 마치고 저장하면<br>기도 제목이 이곳에 모입니다.</div>`;return}
   el.innerHTML=list.map(t=>{
-    const ok=t.status==="answered",editing=openAnswer===t.id;
-    return `<div class="topic"><div class="topic-line"><span class="state ${ok?"ok":""}">${ok?"응답":"기다림"}</span><div class="topic-text">${esc(t.text)}
+    const ok=t.status==="answered",editing=openAnswer===t.id,renaming=openRename===t.id;
+    if(renaming)return `<div class="topic"><div class="edit-box"><label class="sec-l" for="tren">기도 제목 고치기</label><input type="text" id="tren" class="edit-in" value="${esc(t.text)}">
+      <div class="row"><button class="btn primary" data-rsave="${t.id}">저장</button><button class="btn" data-close="1">닫기</button><button class="link" data-del="${t.id}">제목 삭제</button></div>
+      <p class="hint">삭제해도 이 제목으로 드린 기도 기록은 그대로 남아요.</p></div></div>`;
+    return `<div class="topic"><div class="topic-line"><div class="topic-text">${esc(t.text)}
       <div class="from">${shortDate(t.createdAt)}부터 · ${t.prayedCount||1}번 기도${ok&&t.answeredAt?` · ${shortDate(t.answeredAt)} 응답`:""}</div></div></div>
       ${ok&&t.answer&&!editing?`<div class="answer">${esc(t.answer)}</div>`:""}
-      ${editing?`<div class="answer-form"><textarea id="ans">${esc(t.answer)}</textarea><div class="row"><button class="btn primary" data-save="${t.id}">응답 저장</button>${ok?`<button class="btn" data-undo="${t.id}">기다리는 중으로</button>`:""}<button class="btn" data-close="1">닫기</button><button class="link" data-del="${t.id}">제목 삭제</button></div></div>`
-        :`<div><button class="link" data-open="${t.id}">${ok?"응답 수정":"응답 기록하기"}</button></div>`}</div>`}).join("");
+      ${editing?`<div class="answer-form"><textarea id="ans">${esc(t.answer)}</textarea><div class="row"><button class="btn primary" data-save="${t.id}">응답 저장</button><button class="btn" data-close="1">닫기</button></div></div>`
+        :`<div class="row" style="gap:4px"><button class="link" data-open="${t.id}">${ok?"응답 수정":"응답 기록하기"}</button><button class="link" data-rename="${t.id}">제목 고치기</button></div>`}</div>`}).join("");
   el.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>{openAnswer=b.dataset.open;renderTopics();const a=$("#ans");a&&(a.placeholder="하나님이 어떻게 응답하셨는지 적어 보세요",a.focus())});
-  el.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>{openAnswer=null;renderTopics()});
+  el.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>{openAnswer=null;openRename=null;renderTopics()});
+  el.querySelectorAll("[data-rename]").forEach(b=>b.onclick=()=>{openRename=b.dataset.rename;openAnswer=null;renderTopics();const i=$("#tren");i&&(i.focus(),i.setSelectionRange(i.value.length,i.value.length))});
+  el.querySelectorAll("[data-rsave]").forEach(b=>b.onclick=async()=>{const v=$("#tren").value.trim();if(!v)return toast("제목을 비워 둘 수 없어요");const t={...topics.find(x=>x.id===b.dataset.rsave),text:v};await put("topics",t);openRename=null;await loadAll();toast("제목을 고쳤어요")});
   el.querySelectorAll("[data-save]").forEach(b=>b.onclick=()=>saveAnswer(b.dataset.save,true));
-  el.querySelectorAll("[data-undo]").forEach(b=>b.onclick=()=>saveAnswer(b.dataset.undo,false));
-  el.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{if(!b.dataset.sure){b.dataset.sure=1;b.textContent="정말 삭제";return}await del("topics",b.dataset.del);openAnswer=null;await loadAll();toast("삭제했어요")});
+  el.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{if(!b.dataset.sure){b.dataset.sure=1;b.textContent="정말 삭제";return}await del("topics",b.dataset.del);openAnswer=null;openRename=null;await loadAll();toast("삭제했어요")});
 }
 async function saveAnswer(id,answered){
   const t={...topics.find(x=>x.id===id)};
-  if(answered){t.answer=($("#ans")?.value||"").trim();t.status="answered";t.answeredAt=t.answeredAt||Date.now()}else{t.status="waiting";t.answeredAt=null}
-  await put("topics",t);openAnswer=null;await loadAll();toast(answered?"응답을 기록했어요":"기다리는 중으로 옮겼어요");
+  t.answer=($("#ans")?.value||"").trim();
+  if(t.answer){t.status="answered";t.answeredAt=t.answeredAt||Date.now()}else{t.status="waiting";t.answeredAt=null}
+  await put("topics",t);openAnswer=null;await loadAll();toast(t.answer?"응답을 기록했어요":"응답을 지웠어요");
 }
 
 /* ---------- 기록 화면 ---------- */
@@ -794,21 +816,64 @@ function renderLog(){
   if(!prayers.length){el.innerHTML=`<div class="empty">아직 기록된 기도가 없어요.<br>기도실에서 ‘하나님 아버지’를 눌러 보세요.</div>`;return}
   const tmap=Object.fromEntries(topics.map(t=>[t.id,t]));
   el.innerHTML=prayers.map(p=>{const tl=(p.topicIds||[]).map(i=>tmap[i]).filter(Boolean);const c=p.classes;
-    return `<div class="item"><div class="item-title">${esc(p.title||defaultTitle(p.startedAt))}</div><div class="item-head"><span class="when">${dateText(p.startedAt)}</span><span class="when">${p.pending&&(p.pending.transcribe||p.pending.organize)?"정리 중 · ":""}${minText(p.durationSec||0)}</span></div>
-    ${(p.keywords||[]).length?`<div class="chips">${p.keywords.map((w,i)=>`<span class="kw">#${esc(w)}<button data-kwdel="${p.id}" data-i="${i}" aria-label="${esc(w)} 빼기">×</button></span>`).join("")}</div>`:""}
-    ${p.summary?`<div style="font-size:14px">${esc(p.summary)}</div>`:""}
-    ${tl.length?`<div class="chips">${tl.map(t=>`<span class="chip ${t.status==="answered"?"ok":""}">${esc(t.text)}</span>`).join("")}</div>`:""}
+    const sec=(name,body)=>`<div class="sec"><span class="sec-l">${name}</span>${body}</div>`;
+    if(ed&&ed.id===p.id)return `<div class="item editing">
+      <div class="when">${dateText(p.startedAt)} · ${minText(p.durationSec||0)} · 수정 중</div>
+      ${sec("제목",`<input type="text" id="e-title" class="edit-in title-in" value="${esc(ed.title)}">`)}
+      ${sec("요약 · 한 줄에 하나씩",`<div class="sum-cats">${catEditor("ec",ed.classes)}</div>${!hasCats(p.classes)&&ed.summary?`<textarea id="e-sum" class="edit-in" rows="3">${esc(ed.summary)}</textarea>`:""}`)}
+      ${sec("기도 제목 · ×로 빼기",`<div class="chips">${ed.topicIds.map(i=>tmap[i]).filter(Boolean).map(t=>`<span class="kw">${esc(t.text)}<button data-etdel="${t.id}" aria-label="빼기">×</button></span>`).join("")}${ed.newTopics.map((t,i)=>`<span class="kw">${esc(t)}<button data-entdel="${i}" aria-label="빼기">×</button></span>`).join("")}</div>
+        <div class="kw-add"><input type="text" id="e-topic" placeholder="기도 제목 추가" aria-label="기도 제목 추가"><button class="link" id="e-topic-add">추가</button></div>`)}
+      ${sec("키워드 · ×로 빼기",`<div class="chips">${ed.keywords.map((w,i)=>`<span class="kw">#${esc(w)}<button data-ekdel="${i}" aria-label="빼기">×</button></span>`).join("")}</div>
+        <div class="kw-add"><input type="text" id="e-kw" placeholder="키워드 추가" aria-label="키워드 추가"><button class="link" id="e-kw-add">추가</button></div>`)}
+      ${sec("기도 전문",`<textarea id="e-tr" class="edit-in" rows="6">${esc(ed.transcript)}</textarea>`)}
+      <div class="row"><button class="btn primary" id="e-save">저장</button><button class="btn" id="e-cancel">취소</button></div>
+    </div>`;
+    return `<div class="item"><div class="set-row"><div class="item-title">${esc(p.title||defaultTitle(p.startedAt))}</div><button class="link" data-pedit="${p.id}" style="flex:none">수정</button></div><div class="item-head"><span class="when">${dateText(p.startedAt)}</span><span class="when">${p.pending&&(p.pending.transcribe||p.pending.organize)?"정리 중 · ":""}${minText(p.durationSec||0)}</span></div>
+    ${hasCats(c)?sec("요약",catList(c)):p.summary?sec("요약",`<div style="font-size:14px">${esc(p.summary)}</div>`):""}
+    ${tl.length?sec("기도 제목",`<div class="chips">${tl.map(t=>`<span class="chip ${t.status==="answered"?"ok":""}">${esc(t.text)}</span>`).join("")}</div>`):""}
     <details><summary>자세히 보기</summary><div class="body">
-      ${p.audioId?`<div class="row"><button class="btn" data-play="${p.audioId}">녹음 듣기</button><button class="link" data-dl="${p.audioId}">녹음 내려받기</button></div><div id="pl-${p.audioId}"></div>`:""}
-      ${c?`<div class="classes">${[["감사",c.thanks],["회개",c.repent],["간구",c.ask]].filter(([,l])=>l&&l.length).map(([n,l])=>`<div class="cls"><h4>${n}</h4><ul>${l.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`).join("")}</div>`:""}
-      ${(p.verses||[]).length?`<div class="verses">${p.verses.map(v=>`<div class="vs"><b>${esc(v.ref)}</b><span>${esc(v.why)}</span></div>`).join("")}</div>`:""}
-      ${p.transcript?`<p>${esc(p.transcript)}</p>`:""}
-      <div><button class="link" data-pdel="${p.id}">이 기도 삭제</button></div>
-    </div></details></div>`}).join("");
+      ${p.audioId?sec("녹음",`<div class="row"><button class="btn" data-play="${p.audioId}">녹음 듣기</button><button class="link" data-dl="${p.audioId}">녹음 내려받기</button></div><div id="pl-${p.audioId}"></div>`):""}
+      ${(p.verses||[]).length?sec("함께 묵상할 말씀",`<div class="verses">${p.verses.map(v=>`<div class="vs"><b>${esc(v.ref)}</b><span>${esc(v.why)}</span></div>`).join("")}</div>`):""}
+      ${p.transcript?sec("기도 전문 · 녹음을 받아 적은 원문",`<p>${esc(p.transcript)}</p>`):""}
+      <div class="row" style="gap:4px"><button class="link" data-pedit="${p.id}">수정</button><button class="link" data-pdel="${p.id}">이 기도 삭제</button></div>
+    </div></details>
+    ${(p.keywords||[]).length?sec("키워드 · ×로 빼기",`<div class="chips">${p.keywords.map((w,i)=>`<span class="kw">#${esc(w)}<button data-kwdel="${p.id}" data-i="${i}" aria-label="${esc(w)} 빼기">×</button></span>`).join("")}</div>`):""}
+    </div>`}).join("");
+  el.querySelectorAll("[data-pedit]").forEach(b=>b.onclick=()=>{const p=prayers.find(x=>x.id===b.dataset.pedit);if(!p)return;
+    ed={id:p.id,title:p.title||defaultTitle(p.startedAt),summary:p.summary||"",classes:JSON.parse(JSON.stringify(p.classes||{})),transcript:p.transcript||"",keywords:[...(p.keywords||[])],topicIds:[...(p.topicIds||[])],newTopics:[]};renderLog();
+    document.querySelector(".item.editing")?.scrollIntoView({block:"start",behavior:"smooth"})});
+  if(ed){
+    const bind=(sel,key)=>{const x=$(sel);x&&(x.oninput=()=>ed[key]=x.value)};bind("#e-title","title");bindCats("ec",()=>ed.classes,c=>ed.classes=c);bind("#e-sum","summary");bind("#e-tr","transcript");
+    el.querySelectorAll("[data-etdel]").forEach(b=>b.onclick=()=>{ed.topicIds=ed.topicIds.filter(i=>i!==b.dataset.etdel);renderLog()});
+    el.querySelectorAll("[data-entdel]").forEach(b=>b.onclick=()=>{ed.newTopics.splice(+b.dataset.entdel,1);renderLog()});
+    el.querySelectorAll("[data-ekdel]").forEach(b=>b.onclick=()=>{ed.keywords.splice(+b.dataset.ekdel,1);renderLog()});
+    const addT=()=>{const v=$("#e-topic").value.trim();if(v&&!ed.newTopics.includes(v))ed.newTopics.push(v);renderLog();$("#e-topic")?.focus()};
+    const addK=()=>{const v=cleanKw($("#e-kw").value);if(v&&!ed.keywords.includes(v))ed.keywords.push(v);renderLog();$("#e-kw")?.focus()};
+    $("#e-topic-add")&&($("#e-topic-add").onclick=addT);$("#e-kw-add")&&($("#e-kw-add").onclick=addK);
+    $("#e-topic")?.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addT()}});
+    $("#e-kw")?.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addK()}});
+    $("#e-cancel")&&($("#e-cancel").onclick=()=>{ed=null;renderLog()});
+    $("#e-save")&&($("#e-save").onclick=saveEdit);
+  }
   el.querySelectorAll("[data-kwdel]").forEach(b=>b.onclick=async()=>{const p=prayers.find(x=>x.id===b.dataset.kwdel);if(!p)return;const kw=[...(p.keywords||[])];kw.splice(+b.dataset.i,1);await patchPrayer(p.id,{keywords:kw,kwEdited:true});await loadAll()});
   el.querySelectorAll("[data-play]").forEach(b=>b.onclick=async()=>{const a=await getOne("audio",b.dataset.play);if(!a)return toast("녹음을 찾지 못했어요");const box=document.getElementById("pl-"+b.dataset.play);box.innerHTML="";const au=document.createElement("audio");au.controls=true;au.src=URL.createObjectURL(a.blob);box.append(au);au.play().catch(()=>{})});
   el.querySelectorAll("[data-dl]").forEach(b=>b.onclick=async()=>{const a=await getOne("audio",b.dataset.dl);const p=prayers.find(x=>x.audioId===b.dataset.dl);if(a)download(a.blob,`기도_${dayKey(p.startedAt)}_${pad(new Date(p.startedAt).getHours())}${pad(new Date(p.startedAt).getMinutes())}.${a.type.includes("mp4")?"m4a":"webm"}`)});
   el.querySelectorAll("[data-pdel]").forEach(b=>b.onclick=async()=>{if(!b.dataset.sure){b.dataset.sure=1;b.textContent="녹음까지 정말 삭제";return}const p=prayers.find(x=>x.id===b.dataset.pdel);await del("prayers",p.id);if(p.audioId)await del("audio",p.audioId);await loadAll();toast("삭제했어요")});
+}
+let ed=null;
+async function saveEdit(){
+  const p=await getOne("prayers",ed.id);if(!p){ed=null;return renderLog()}
+  /* 뺀 기도 제목: 이 기도와의 연결만 끊음. 다른 기도도 없고 응답도 없는 제목이면 정리 */
+  for(const tid of (p.topicIds||[]).filter(i=>!ed.topicIds.includes(i))){
+    const t=topics.find(x=>x.id===tid);if(!t)continue;
+    const ids=(t.prayerIds||[]).filter(x=>x!==p.id);
+    if(!ids.length&&t.status==="waiting"&&!t.answer)await del("topics",tid);
+    else await put("topics",{...t,prayerIds:ids,prayedCount:Math.max(1,(t.prayedCount||1)-1)});
+  }
+  const added=await saveTopics(ed.newTopics.map(text=>({text,matchId:null})),p.id,p.startedAt);
+  const topicIds=[...new Set([...ed.topicIds,...added])];
+  await patchPrayer(p.id,{title:ed.title.trim()||defaultTitle(p.startedAt),titleEdited:true,summary:ed.summary.trim(),classes:hasCats(ed.classes)?ed.classes:null,transcript:ed.transcript.trim(),textEdited:true,keywords:ed.keywords,kwEdited:true,topicIds});
+  ed=null;await loadAll();toast("기도를 고쳤어요");
 }
 function monthData(m){const ps=prayers.filter(p=>dayKey(p.startedAt).startsWith(m));const ids=new Set(ps.flatMap(p=>p.topicIds||[]));const ts=topics.filter(t=>ids.has(t.id));const ans=topics.filter(t=>t.answeredAt&&dayKey(t.answeredAt).startsWith(m));return {ps,ts,ans}}
 function showMonth(){const m=$("#monthSel").value;const saved=ls.get("review-"+m,null);const {ps,ts,ans}=monthData(m);
