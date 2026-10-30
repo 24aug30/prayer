@@ -1,5 +1,5 @@
 // 골방 기도실: 앱 화면을 폰에 저장해 인터넷 없이도 열리게 함
-const CACHE = "gobang-v11";
+const CACHE = "gobang-v12";
 const FILES = ["./", "index.html", "manifest.json", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", e => {
