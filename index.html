@@ -59,6 +59,8 @@ h2{font-family:var(--serif);font-weight:700;font-size:21px;margin:0 0 4px;text-w
 .sound{display:flex;gap:6px}
 .sound button{background:none;border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:12px;color:var(--faint)}
 .sound button[aria-pressed="true"]{border-color:var(--muted);color:var(--fg)}
+.sound-note{margin:-14px 0 0;font-size:11px;color:var(--faint);min-height:1.2em}
+.praying .sound-note{visibility:hidden}
 .live{width:100%;max-height:30vh;overflow:auto;color:var(--faint);font-size:13px;line-height:1.8;text-align:left;border-top:1px solid var(--line);padding-top:12px}
 .live i{color:#3f3b36;font-style:normal}
 
@@ -171,13 +173,15 @@ details p{white-space:pre-wrap;color:var(--muted);font-size:13px;margin:0}
     <div class="cross-wrap" aria-hidden="true"><div class="cross"></div></div>
     <div class="status" id="status"></div>
     <p class="verse" id="verse">너는 기도할 때에 네 골방에 들어가 문을 닫고 은밀한 중에 계신 네 아버지께 기도하라 · 마태복음 6:6</p>
-    <button class="btn-main" id="startBtn">기도 시작</button>
+    <button class="btn-main" id="startBtn">하나님 아버지</button>
     <p class="today-hint" id="todayHint" hidden></p>
     <div class="sound" role="group" aria-label="배경음">
       <button data-s="off" aria-pressed="true">배경음 없음</button>
       <button data-s="hum" aria-pressed="false">허밍</button>
       <button data-s="rain" aria-pressed="false">빗소리</button>
+      <button data-s="hymn" aria-pressed="false">찬송가</button>
     </div>
+    <p class="sound-note" id="soundNote"></p>
     <div class="live" id="live" hidden></div>
   </section>
 
@@ -196,6 +200,7 @@ details p{white-space:pre-wrap;color:var(--muted);font-size:13px;margin:0}
       <button class="btn primary" id="saveBtn">저장</button>
       <button class="btn" id="discardBtn">저장 안 함</button>
     </div>
+    <p class="hint" id="saveHint">기도와 녹음은 이미 폰에 저장됐어요. 정리 중에 저장하거나 앱을 닫아도, 정리가 끝나면 자동으로 채워집니다.</p>
     <div class="notice" id="reviewNotice" hidden></div>
   </section>
 </main>
@@ -342,8 +347,8 @@ function todayTargets(){
   names.forEach(n=>out.push({key:"w:"+n,who:n,what:"",sub:`${WD[new Date().getDay()]}요일 중보`,done:((weekly.log||{})[t]||[]).includes(n)}));
   return out;
 }
-async function markInter(key,on){
-  const t=today();
+async function markInter(key,on,day){
+  const t=day||today();
   if(key.startsWith("w:")){const n=key.slice(2);const l=new Set((weekly.log||{})[t]||[]);on?l.add(n):l.delete(n);weekly={...weekly,log:{...weekly.log,[t]:[...l]}};await put("inter",weekly)}
   else{const v=vows.find(x=>x.id===key);if(!v)return;const log={...(v.log||{})};on?log[t]=true:delete log[t];Object.assign(v,{log});await put("inter",v)}
 }
@@ -390,31 +395,79 @@ document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>show(b.datase
 /* ---------- 배경음 (직접 합성) ---------- */
 let soundMode=ls.get("sound","off"),actx=null,soundNodes=[];
 function renderSound(){document.querySelectorAll(".sound button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.s===soundMode))}
-document.querySelectorAll(".sound button").forEach(b=>b.onclick=()=>{soundMode=b.dataset.s;ls.set("sound",soundMode);renderSound();if(session){stopSound();startSound()}});
-function startSound(){
+let previewTimer=null;
+/* 버튼을 누른 그 순간에 소리 장치를 깨워야 안드로이드가 소리를 허락함 */
+function unlockAudio(){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state!=="running")actx.resume()}catch(e){}}
+function soundNote(t){$("#soundNote").textContent=t||""}
+document.querySelectorAll(".sound button").forEach(b=>b.onclick=()=>{
+  soundMode=b.dataset.s;ls.set("sound",soundMode);renderSound();unlockAudio();
+  clearTimeout(previewTimer);stopSound(.3);soundNote("");
+  if(soundMode==="off")return;
+  startSound(.6);
+  if(!session){soundNote("미리 듣기 중 · 기도하는 동안에는 아멘까지 계속 나와요");previewTimer=setTimeout(()=>{if(!session){stopSound(1.5);soundNote("")}},soundMode==="hymn"?9000:4000)}
+});
+
+/* 찬송가: 저작권이 끝난 옛 곡을 가사 없이 직접 연주. [음, 박자] · 모두 G장조 */
+const N={D4:293.66,E4:329.63,"F#4":369.99,G4:392,A4:440,B4:493.88,C5:523.25,D5:587.33,E5:659.25};
+const HYMNS=[
+ {title:"나 같은 죄인 살리신",beat:.78,notes:[["D4",1],["G4",2],["B4",.5],["G4",.5],["B4",2],["A4",1],["G4",2],["E4",1],["D4",2],["D4",1],["G4",2],["B4",.5],["G4",.5],["B4",2],["A4",.5],["B4",.5],["D5",5],["B4",1],["D5",2],["B4",.5],["G4",.5],["B4",2],["A4",1],["G4",2],["E4",1],["D4",2],["D4",1],["G4",2],["B4",.5],["G4",.5],["B4",2],["A4",1],["G4",5]]},
+ {title:"만복의 근원 하나님",beat:.82,notes:[["G4",2],["G4",1],["F#4",1],["E4",1],["D4",1],["G4",1],["A4",1],["B4",2],["B4",2],["B4",1],["B4",1],["A4",1],["G4",1],["C5",1],["B4",1],["A4",2],["G4",2],["A4",1],["B4",1],["A4",1],["G4",1],["E4",1],["F#4",1],["G4",2],["D5",2],["B4",1],["G4",1],["A4",1],["C5",1],["B4",1],["A4",1],["G4",4]]},
+ {title:"기뻐하며 경배하세",beat:.62,notes:[["B4",1],["B4",1],["C5",1],["D5",1],["D5",1],["C5",1],["B4",1],["A4",1],["G4",1],["G4",1],["A4",1],["B4",1],["B4",1.5],["A4",.5],["A4",2],["B4",1],["B4",1],["C5",1],["D5",1],["D5",1],["C5",1],["B4",1],["A4",1],["G4",1],["G4",1],["A4",1],["B4",1],["A4",1.5],["G4",.5],["G4",2],["A4",1],["A4",1],["B4",1],["G4",1],["A4",1],["B4",.5],["C5",.5],["B4",1],["G4",1],["A4",1],["B4",.5],["C5",.5],["B4",1],["A4",1],["G4",1],["A4",1],["D4",2],["B4",1],["B4",1],["C5",1],["D5",1],["D5",1],["C5",1],["B4",1],["A4",1],["G4",1],["G4",1],["A4",1],["B4",1],["A4",1.5],["G4",.5],["G4",3]]}
+];
+let hymnTimer=null;
+function pianoNote(out,freq,t,dur){
+  const g=actx.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.5,t+.03);
+  g.gain.exponentialRampToValueAtTime(.22,t+Math.min(.6,dur));g.gain.setValueAtTime(.22,t+dur);g.gain.exponentialRampToValueAtTime(.001,t+dur+1.2);
+  const o1=actx.createOscillator();o1.type="sine";o1.frequency.value=freq;
+  const o2=actx.createOscillator();o2.type="triangle";o2.frequency.value=freq*2;const g2=actx.createGain();g2.gain.value=.12;
+  o1.connect(g);o2.connect(g2).connect(g);g.connect(out);
+  o1.start(t);o2.start(t);o1.stop(t+dur+1.3);o2.stop(t+dur+1.3);
+}
+function startHymns(master){
+  /* 잔잔한 울림 */
+  const dl=actx.createDelay();dl.delayTime.value=.32;const fb=actx.createGain();fb.gain.value=.32;const lp=actx.createBiquadFilter();lp.type="lowpass";lp.frequency.value=2200;
+  const bus=actx.createGain();bus.gain.value=.55;bus.connect(master);bus.connect(dl);dl.connect(lp).connect(fb).connect(dl);lp.connect(master);
+  /* 바닥에 깔리는 G 화음 */
+  [[98,.10],[146.83,.07],[196,.05]].forEach(([hz,v])=>{const o=actx.createOscillator();o.type="sine";o.frequency.value=hz;const g=actx.createGain();g.gain.value=v;o.connect(g).connect(master);o.start();soundNodes.push(o)});
+  let hi=Math.floor(Math.random()*HYMNS.length),ni=0,next=actx.currentTime+1;
+  const tick=()=>{
+    while(next<actx.currentTime+1.5){
+      const hy=HYMNS[hi],nt=hy.notes[ni];
+      const dur=nt[1]*hy.beat;pianoNote(bus,N[nt[0]],next,dur*.95);next+=dur;ni++;
+      if(ni>=hy.notes.length){ni=0;hi=(hi+1)%HYMNS.length;next+=3}
+    }
+  };
+  tick();hymnTimer=setInterval(tick,300);
+}
+function startSound(fade=3){
   if(soundMode==="off")return;
   try{
-    actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume();
-    const master=actx.createGain();master.gain.value=0;master.connect(actx.destination);
-    master.gain.linearRampToValueAtTime(soundMode==="rain"?.22:.08,actx.currentTime+3);
+    unlockAudio();
+    const now=actx.currentTime,master=actx.createGain();
+    master.gain.setValueAtTime(0,now);master.connect(actx.destination);
+    master.gain.linearRampToValueAtTime(soundMode==="rain"?.55:soundMode==="hymn"?.5:.32,now+fade);
     if(soundMode==="rain"){
-      const len=actx.sampleRate*4,buf=actx.createBuffer(1,len,actx.sampleRate),d=buf.getChannelData(0);let last=0;
-      for(let i=0;i<len;i++){const w=Math.random()*2-1;last=(last+.02*w)/1.02;d[i]=last*3.5}
+      const len=actx.sampleRate*6,buf=actx.createBuffer(1,len,actx.sampleRate),d=buf.getChannelData(0);
+      let b0=0,b1=0,b2=0;
+      for(let i=0;i<len;i++){const w=Math.random()*2-1;b0=.99765*b0+w*.099;b1=.963*b1+w*.2965;b2=.57*b2+w*1.0526;d[i]=(b0+b1+b2+w*.1848)*.22}
       const src=actx.createBufferSource();src.buffer=buf;src.loop=true;
-      const f=actx.createBiquadFilter();f.type="lowpass";f.frequency.value=900;
-      src.connect(f).connect(master);src.start();soundNodes.push(src);
+      const lp=actx.createBiquadFilter();lp.type="lowpass";lp.frequency.value=3200;
+      const hp=actx.createBiquadFilter();hp.type="highpass";hp.frequency.value=180;
+      src.connect(hp).connect(lp).connect(master);src.start();soundNodes.push(src);
+    }else if(soundMode==="hymn"){
+      startHymns(master);
     }else{
-      [110,164.81,220,277.18].forEach((hz,i)=>{
+      [196,293.66,392,493.88].forEach((hz,i)=>{
         const o=actx.createOscillator();o.type="sine";o.frequency.value=hz;
-        const g=actx.createGain();g.gain.value=.25;
-        const l=actx.createOscillator();l.frequency.value=.05+i*.03;const lg=actx.createGain();lg.gain.value=.18;
+        const g=actx.createGain();g.gain.value=[.34,.26,.22,.14][i];
+        const l=actx.createOscillator();l.frequency.value=.07+i*.04;const lg=actx.createGain();lg.gain.value=[.12,.1,.1,.08][i];
         l.connect(lg).connect(g.gain);o.connect(g).connect(master);o.start();l.start();soundNodes.push(o,l);
       });
     }
     soundNodes.master=master;
   }catch(e){}
 }
-function stopSound(){try{const m=soundNodes.master;if(m&&actx){m.gain.cancelScheduledValues(actx.currentTime);m.gain.setValueAtTime(m.gain.value,actx.currentTime);m.gain.linearRampToValueAtTime(0,actx.currentTime+1.5)}const n=soundNodes;setTimeout(()=>n.forEach(x=>{try{x.stop()}catch(e){}}),1600)}catch(e){}soundNodes=[]}
+function stopSound(fade=1.5){clearInterval(hymnTimer);hymnTimer=null;try{const m=soundNodes.master;if(m&&actx){const t=actx.currentTime;m.gain.cancelScheduledValues(t);m.gain.setValueAtTime(m.gain.value,t);m.gain.linearRampToValueAtTime(0,t+fade);setTimeout(()=>{try{m.disconnect()}catch(e){}},fade*1000+200)}const n=soundNodes;setTimeout(()=>n.forEach(x=>{try{x.stop()}catch(e){}}),fade*1000+100)}catch(e){}soundNodes=[]}
 
 /* ---------- 기도 (녹음 + 실시간 받아쓰기) ---------- */
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -423,6 +476,7 @@ function setStatus(t,rec){$("#status").innerHTML=t?`${rec?'<span class="dot"></s
 $("#startBtn").onclick=()=>session?finish():begin();
 
 async function begin(){
+  unlockAudio();clearTimeout(previewTimer);stopSound(.2);soundNote("");
   let stream;
   try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}})}
   catch(e){toast("마이크 권한이 필요해요. 주소창 왼쪽 자물쇠에서 마이크를 허용해 주세요.");return}
@@ -430,11 +484,11 @@ async function begin(){
   const mime=["audio/webm;codecs=opus","audio/webm","audio/mp4"].find(m=>window.MediaRecorder&&MediaRecorder.isTypeSupported(m))||"";
   try{
     session.rec=new MediaRecorder(stream,mime?{mimeType:mime,audioBitsPerSecond:24000}:{});
-    session.rec.ondataavailable=e=>e.data&&e.data.size&&session&&session.chunks.push(e.data);
+    const chunks=session.chunks;session.rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
     session.rec.start(5000);
   }catch(e){toast("이 브라우저는 녹음을 지원하지 않아요");stream.getTracks().forEach(t=>t.stop());session=null;return}
   document.body.classList.add("praying");
-  $("#startBtn").textContent="아멘 · 기도 마치기";$("#verse").hidden=true;
+  $("#startBtn").textContent="아멘";$("#verse").hidden=true;
   setStatus("녹음 중",true);
   $("#clock").textContent="00:00";
   session.timer=setInterval(()=>$("#clock").textContent=mmss(Math.floor((Date.now()-session.start)/1000)),1000);
@@ -459,24 +513,40 @@ async function finish(){
   const blob=await new Promise(res=>{s.rec.onstop=()=>res(new Blob(s.chunks,{type:s.rec.mimeType||"audio/webm"}));try{s.rec.stop()}catch(e){res(new Blob(s.chunks))}});
   s.stream.getTracks().forEach(t=>t.stop());
   document.body.classList.remove("praying");
-  $("#startBtn").textContent="기도 시작";$("#verse").hidden=false;setStatus("");$("#live").hidden=true;
-  const dur=Math.max(1,Math.round((Date.now()-s.start)/1000));
-  draft={id:uid(),startedAt:s.start,durationSec:dur,audio:blob,live:(s.final+" "+s.interim).trim(),topics:[],classes:null,verses:[]};
+  $("#startBtn").textContent="하나님 아버지";$("#verse").hidden=false;setStatus("");$("#live").hidden=true;
+  const dur=Math.max(1,Math.round((Date.now()-s.start)/1000)),live=(s.final+" "+s.interim).trim(),k=keys();
+  const targets=todayTargets().map(({key,who,what})=>({key,who,what}));
+  draft={id:uid(),startedAt:s.start,durationSec:dur,audio:blob,live,topics:[],classes:null,verses:[],targets,interSel:new Set(todayTargets().filter(x=>x.done).map(x=>x.key)),textEdited:false};
+  /* 아멘 순간 바로 저장: 앱을 닫아도 기도와 녹음은 남는다 */
+  let audioId=null;
+  try{
+    if(blob&&blob.size){audioId=draft.id;await put("audio",{id:audioId,blob,type:blob.type})}
+    await put("prayers",{id:draft.id,startedAt:s.start,durationSec:dur,transcript:live,summary:"",classes:null,verses:[],topicIds:[],audioId,targets,confirmed:false,aiApplied:false,
+      pending:{transcribe:!!(k.openai&&audioId),organize:!!k.claude}});
+    loadAll();
+  }catch(e){toast("폰에 저장하지 못했어요. 저장 공간을 확인해 주세요.")}
   openReview();
-  await processDraft();
+  processPrayer(draft.id);
 }
 
 /* ---------- 정리 화면 ---------- */
 const STEP=["녹음 저장","음성을 글로 옮기기","AI 정리"];
-function setStep(i,state,note){const li=$("#steps").children[i];li.className=state;li.textContent=STEP[i]+(note?` · ${note}`:"")}
+function setStep(i,state,note){const li=$("#steps").children[i];if(!li)return;li.className=state;li.textContent=STEP[i]+(note?` · ${note}`:"")}
 function openReview(){
   document.body.classList.add("reviewing");
   $("#room").hidden=true;$("#review").hidden=false;window.scrollTo(0,0);
   $("#reviewMeta").textContent=`${dateText(draft.startedAt)} · ${minText(draft.durationSec)}`;
   $("#steps").innerHTML=STEP.map(t=>`<li>${t}</li>`).join("");
-  const a=$("#reviewAudio");if(draft.audio&&draft.audio.size){a.src=URL.createObjectURL(draft.audio);a.hidden=false}else a.hidden=true;
+  const has=draft.audio&&draft.audio.size;
+  setStep(0,has?"ok":"skip",has?`${(draft.audio.size/1048576).toFixed(1)}MB · 폰에 저장됨`:"녹음 없음");
+  const k=keys();
+  if(!(k.openai&&has))setStep(1,draft.live?"ok":"skip",draft.live?"실시간 받아쓰기":"글 없음 · 직접 적거나 전사 키 연결");
+  if(!k.claude){setStep(2,"skip","Claude 키 연결 시 자동")}
+  $("#aiBtn").hidden=!k.claude;
+  const a=$("#reviewAudio");if(has){a.src=URL.createObjectURL(draft.audio);a.hidden=false}else a.hidden=true;
   $("#reviewText").value=draft.live;$("#reviewSummary").value="";$("#reviewNotice").hidden=true;
-  draft.targets=todayTargets();draft.interSel=new Set(draft.targets.filter(x=>x.done).map(x=>x.key));
+  $("#reviewText").oninput=()=>draft&&(draft.textEdited=true);
+  $("#saveHint").hidden=false;
   renderClasses();renderTopicEdit();renderInterChips();
 }
 function renderInterChips(){
@@ -484,33 +554,81 @@ function renderInterChips(){
   $("#interChips").innerHTML=draft.targets.map(x=>`<button class="chip-btn" data-k="${esc(x.key)}" aria-pressed="${draft.interSel.has(x.key)}">${draft.interSel.has(x.key)?"✓ ":""}${esc(x.who)}</button>`).join("");
   $("#interChips").querySelectorAll("button").forEach(b=>b.onclick=()=>{const k=b.dataset.k;draft.interSel.has(k)?draft.interSel.delete(k):draft.interSel.add(k);renderInterChips()});
 }
-async function processDraft(){
-  const k=keys();
-  setStep(0,draft.audio&&draft.audio.size?"ok":"skip",draft.audio&&draft.audio.size?`${(draft.audio.size/1048576).toFixed(1)}MB`:"녹음 없음");
-  if(k.openai&&draft.audio&&draft.audio.size){
-    setStep(1,"run");
-    try{$("#reviewText").value=await transcribe(draft.audio,k.openai);setStep(1,"ok")}
-    catch(e){setStep(1,"skip",draft.live?"실패, 실시간 글자 사용":"실패");toast(errText(e))}
-  }else setStep(1,draft.live?"ok":"skip",draft.live?"실시간 받아쓰기":"글 없음 · 직접 적거나 전사 키 연결");
-  await organize();
-}
-async function organize(){
-  const k=keys(),text=$("#reviewText").value.trim();
-  if(!k.claude){setStep(2,"skip","Claude 키 연결 시 자동");$("#aiBtn").hidden=true;return}
-  if(!text){setStep(2,"skip","기도 내용이 비어 있음");return}
-  $("#aiBtn").hidden=false;$("#aiBtn").disabled=true;setStep(2,"run");
+
+/* ---------- 뒤에서 정리: 화면을 닫아도, 앱을 다시 열어도 이어서 ---------- */
+const running=new Set();
+async function patchPrayer(id,patch){const p=await getOne("prayers",id);if(!p)return null;Object.assign(p,patch);await put("prayers",p);return p}
+async function processPrayer(id){
+  if(running.has(id))return;running.add(id);
+  const onScreen=()=>draft&&draft.id===id;
   try{
-    const r=await organizeAI(text,k.claude);
-    $("#reviewSummary").value=r.summary||"";
-    draft.classes={thanks:r.thanks||[],repent:r.repent||[],ask:r.ask||[]};
-    draft.verses=(r.verses||[]).slice(0,2);
-    draft.topics=(r.topics||[]).slice(0,7).map(t=>({text:String(t.text||t),matchId:t.match&&topics.some(x=>x.id===t.match)?t.match:null}));
-    (r.intercede||[]).forEach(k=>draft.targets.some(x=>x.key===k)&&draft.interSel.add(k));
-    renderClasses();renderTopicEdit();renderInterChips();setStep(2,"ok");
-  }catch(e){setStep(2,"skip","실패");toast(errText(e))}
-  finally{$("#aiBtn").disabled=false}
+    let p=await getOne("prayers",id);if(!p)return;
+    const k=keys();
+    if(p.pending&&p.pending.transcribe){
+      if(onScreen())setStep(1,"run");
+      try{
+        const a=await getOne("audio",p.audioId);if(!a)throw new Error("녹음을 찾지 못함");
+        const text=await transcribe(a.blob,k.openai);
+        p=await getOne("prayers",id);if(!p)return;
+        const keepUser=p.textEdited;
+        p=await patchPrayer(id,{transcript:keepUser?p.transcript:text,pending:{...p.pending,transcribe:false}});if(!p)return;
+        if(onScreen()){if(!draft.textEdited)$("#reviewText").value=text;setStep(1,"ok")}
+      }catch(e){
+        const retry=/Failed to fetch|NetworkError|Load failed|429|50\d/.test(String(e&&e.message||e));
+        p=await getOne("prayers",id);if(!p)return;
+        p=await patchPrayer(id,{pending:{...p.pending,transcribe:retry}});if(!p)return;
+        if(onScreen()){setStep(1,"skip",(p.transcript?"실패, 실시간 글자 사용":"실패")+(retry?" · 다음에 다시 시도":""));toast(errText(e))}
+        if(retry)return;
+      }
+    }
+    if(p.pending&&p.pending.organize){
+      const text=(onScreen()?$("#reviewText").value:p.transcript||"").trim();
+      if(!text){await patchPrayer(id,{pending:{...p.pending,organize:false}});if(onScreen())setStep(2,"skip","기도 내용이 비어 있음");return}
+      if(onScreen()){setStep(2,"run");$("#aiBtn").disabled=true}
+      try{
+        const r=await organizeAI(text,k.claude,p.targets||[]);
+        const ai={summary:r.summary||"",classes:{thanks:r.thanks||[],repent:r.repent||[],ask:r.ask||[]},verses:(r.verses||[]).slice(0,2),
+          topics:(r.topics||[]).slice(0,7).map(t=>({text:String(t.text||t),matchId:t.match&&topics.some(x=>x.id===t.match)?t.match:null})),
+          intercede:(r.intercede||[]).filter(x=>(p.targets||[]).some(t=>t.key===x))};
+        p=await getOne("prayers",id);if(!p)return;
+        p=await patchPrayer(id,{ai,pending:{...p.pending,organize:false}});if(!p)return;
+        if(onScreen()){
+          $("#reviewSummary").value=ai.summary;draft.classes=ai.classes;draft.verses=ai.verses;draft.topics=ai.topics.map(t=>({...t}));
+          ai.intercede.forEach(x=>draft.interSel.add(x));
+          renderClasses();renderTopicEdit();renderInterChips();setStep(2,"ok");
+        }else{await applyAI(id);toast("AI 정리가 끝나 기록에 반영했어요");loadAll()}
+      }catch(e){
+        const retry=/Failed to fetch|NetworkError|Load failed|429|50\d/.test(String(e&&e.message||e));
+        p=await getOne("prayers",id);if(p)await patchPrayer(id,{pending:{...p.pending,organize:retry}});
+        if(onScreen()){setStep(2,"skip","실패"+(retry?" · 다음에 다시 시도":""));toast(errText(e))}
+      }
+    }
+  }finally{running.delete(id);if(onScreen())$("#aiBtn").disabled=false}
 }
-$("#aiBtn").onclick=organize;
+async function saveTopics(list,prayerId,when){
+  const ids=[];
+  for(const t of list){
+    const text=(t.text||"").trim();if(!text)continue;
+    let tp=t.matchId&&topics.find(x=>x.id===t.matchId);
+    if(tp)tp={...tp,prayedCount:(tp.prayedCount||1)+1,lastPrayedAt:when,prayerIds:[...(tp.prayerIds||[]),prayerId]};
+    else tp={id:uid(),text,status:"waiting",createdAt:when,lastPrayedAt:when,prayedCount:1,answer:"",answeredAt:null,prayerIds:[prayerId]};
+    await put("topics",tp);ids.push(tp.id);
+    if(!topics.some(x=>x.id===tp.id))topics.push(tp);
+  }
+  return ids;
+}
+/* 저장을 먼저 눌렀거나 앱을 닫은 기도에 AI 결과를 채움: 사용자가 쓴 것은 덮지 않음 */
+async function applyAI(id){
+  const p=await getOne("prayers",id);if(!p||!p.ai||p.aiApplied)return;
+  const ai=p.ai,patch={aiApplied:true};
+  if(!p.summary)patch.summary=ai.summary;
+  if(!p.classes)patch.classes=ai.classes;
+  if(!(p.verses||[]).length)patch.verses=ai.verses;
+  if(!(p.topicIds||[]).length)patch.topicIds=await saveTopics(ai.topics,id,p.startedAt);
+  for(const x of ai.intercede)await markInter(x,true,dayKey(p.startedAt));
+  await patchPrayer(id,patch);
+}
+$("#aiBtn").onclick=async()=>{if(!draft)return;await patchPrayer(draft.id,{pending:{transcribe:false,organize:true},ai:null,aiApplied:false});processPrayer(draft.id)};
 function renderClasses(){
   const c=draft.classes;$("#classBox").hidden=!c;
   if(c)$("#classes").innerHTML=[["감사",c.thanks],["회개",c.repent],["간구",c.ask]].filter(([,l])=>l&&l.length).map(([n,l])=>`<div class="cls"><h4>${n} ${l.length}</h4><ul>${l.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`).join("")||`<p class="hint">분류할 내용이 없어요</p>`;
@@ -529,23 +647,23 @@ $("#addTopic").onclick=()=>{draft.topics.push({text:"",matchId:null});renderTopi
 $("#saveBtn").onclick=async()=>{
   const btn=$("#saveBtn");btn.disabled=true;
   try{
-    const now=draft.startedAt,topicIds=[];
-    for(const t of draft.topics){
-      const text=t.text.trim();if(!text)continue;
-      let tp=t.matchId&&topics.find(x=>x.id===t.matchId);
-      if(tp){tp={...tp,prayedCount:(tp.prayedCount||1)+1,lastPrayedAt:now,prayerIds:[...(tp.prayerIds||[]),draft.id]}}
-      else tp={id:uid(),text,status:"waiting",createdAt:now,lastPrayedAt:now,prayedCount:1,answer:"",answeredAt:null,prayerIds:[draft.id]};
-      await put("topics",tp);topicIds.push(tp.id);
+    const id=draft.id,when=draft.startedAt;
+    const topicIds=await saveTopics(draft.topics,id,when);
+    for(const k of draft.interSel)await markInter(k,true,dayKey(when));
+    let p=await getOne("prayers",id);
+    if(!p){/* 아멘 때 저장이 실패했던 경우 */
+      let audioId=null;if(draft.audio&&draft.audio.size){audioId=id;await put("audio",{id,blob:draft.audio,type:draft.audio.type})}
+      p={id,startedAt:when,durationSec:draft.durationSec,audioId,targets:draft.targets,pending:{}};
     }
-    for(const k of draft.interSel)await markInter(k,true);
-    let audioId=null;
-    if(draft.audio&&draft.audio.size){audioId=draft.id;await put("audio",{id:audioId,blob:draft.audio,type:draft.audio.type})}
-    await put("prayers",{id:draft.id,startedAt:draft.startedAt,durationSec:draft.durationSec,transcript:$("#reviewText").value.trim(),summary:$("#reviewSummary").value.trim(),classes:draft.classes,verses:draft.verses,topicIds,audioId});
-    closeReview();await loadAll();toast("기도를 저장했어요");
+    const stillWorking=!!(p.pending&&(p.pending.transcribe||p.pending.organize));
+    await put("prayers",{...p,transcript:$("#reviewText").value.trim()||p.transcript||"",textEdited:!!draft.textEdited,summary:$("#reviewSummary").value.trim(),
+      classes:draft.classes||p.classes||null,verses:draft.verses.length?draft.verses:(p.verses||[]),topicIds,confirmed:true,aiApplied:!!p.ai||!stillWorking});
+    closeReview();await loadAll();
+    toast(stillWorking?"저장했어요. 정리가 끝나면 자동으로 채워져요":"기도를 저장했어요");
   }catch(e){$("#reviewNotice").hidden=false;$("#reviewNotice").textContent="저장하지 못했어요. 폰 저장 공간을 확인해 주세요."}
   finally{btn.disabled=false}
 };
-$("#discardBtn").onclick=()=>{const b=$("#discardBtn");if(b.dataset.sure){closeReview();toast("저장하지 않았어요");return}b.dataset.sure="1";b.textContent="녹음까지 버리기";setTimeout(()=>{delete b.dataset.sure;b.textContent="저장 안 함"},3000)};
+$("#discardBtn").onclick=async()=>{const b=$("#discardBtn");if(b.dataset.sure){const id=draft.id;delete b.dataset.sure;b.textContent="저장 안 함";closeReview();try{await del("prayers",id);await del("audio",id)}catch(e){}await loadAll();toast("기도와 녹음을 지웠어요");return}b.dataset.sure="1";b.textContent="녹음까지 지우기";setTimeout(()=>{delete b.dataset.sure;b.textContent="저장 안 함"},3000)};
 function closeReview(){const a=$("#reviewAudio");if(a.src)URL.revokeObjectURL(a.src);a.removeAttribute("src");draft=null;document.body.classList.remove("reviewing");$("#review").hidden=true;$("#room").hidden=false;$("#clock").textContent="00:00"}
 
 /* ---------- AI 호출 (폰에서 바로) ---------- */
@@ -564,7 +682,7 @@ async function claude(prompt,key,max=1500){
   if(!r.ok)throw new Error(r.status+" "+(await r.text()).slice(0,120));
   const j=await r.json();return j.content.map(c=>c.text||"").join("").trim();
 }
-async function organizeAI(text,key){
+async function organizeAI(text,key,targets){
   const open=topics.filter(t=>t.status==="waiting").slice(0,40).map(t=>({id:t.id,text:t.text}));
   const out=await claude(`아래는 한 그리스도인이 소리 내어 드린 기도를 받아 적은 글입니다. 받아쓰기 오류가 있을 수 있습니다.
 규칙: 기도한 사람의 표현을 존중하고, 판단이나 조언을 덧붙이지 마세요. 말씀은 개역개정 기준 장절만 정확히 적고 본문은 쓰지 마세요. 확실하지 않은 장절은 넣지 마세요.
@@ -579,7 +697,7 @@ async function organizeAI(text,key){
 topics 최대 7개, verses 1~2개. intercede에는 기도 중 그 대상(사람·공동체)을 위해 기도한 경우만 넣으세요.
 
 기존 기도 제목: ${JSON.stringify(open)}
-오늘의 중보 대상: ${JSON.stringify((draft&&draft.targets||[]).map(x=>({key:x.key,who:x.who,what:x.what})))}
+오늘의 중보 대상: ${JSON.stringify((targets||[]).map(x=>({key:x.key,who:x.who,what:x.what})))}
 
 기도:
 """${text}"""`,key);
@@ -626,10 +744,10 @@ function renderLog(){
   const sel=$("#monthSel"),keep=sel.value;sel.innerHTML=months.map(m=>`<option value="${m}">${m.slice(0,4)}년 ${+m.slice(5)}월</option>`).join("");if(months.includes(keep))sel.value=keep;
   showMonth();
   const el=$("#logList");
-  if(!prayers.length){el.innerHTML=`<div class="empty">아직 기록된 기도가 없어요.<br>기도실에서 ‘기도 시작’을 눌러 보세요.</div>`;return}
+  if(!prayers.length){el.innerHTML=`<div class="empty">아직 기록된 기도가 없어요.<br>기도실에서 ‘하나님 아버지’를 눌러 보세요.</div>`;return}
   const tmap=Object.fromEntries(topics.map(t=>[t.id,t]));
   el.innerHTML=prayers.map(p=>{const tl=(p.topicIds||[]).map(i=>tmap[i]).filter(Boolean);const c=p.classes;
-    return `<div class="item"><div class="item-head"><span class="when">${dateText(p.startedAt)}</span><span class="when">${minText(p.durationSec||0)}</span></div>
+    return `<div class="item"><div class="item-head"><span class="when">${dateText(p.startedAt)}</span><span class="when">${p.pending&&(p.pending.transcribe||p.pending.organize)?"정리 중 · ":""}${minText(p.durationSec||0)}</span></div>
     ${p.summary?`<div style="font-size:14px">${esc(p.summary)}</div>`:""}
     ${tl.length?`<div class="chips">${tl.map(t=>`<span class="chip ${t.status==="answered"?"ok":""}">${esc(t.text)}</span>`).join("")}</div>`:""}
     <details><summary>자세히 보기</summary><div class="body">
@@ -673,9 +791,16 @@ async function checkLock(){const h=ls.get("pin",null);if(!h)return;$("#lock").hi
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&!session&&!draft)checkLock()});
 
 /* ---------- 시작 ---------- */
+async function resumeAll(){
+  for(const p of prayers){
+    if(p.pending&&(p.pending.transcribe||p.pending.organize))await processPrayer(p.id);
+    else if(p.ai&&!p.aiApplied){await applyAI(p.id);await loadAll()}
+  }
+}
+window.addEventListener("online",()=>idb&&resumeAll());
 renderSound();renderKeys();renderPin();
 (async()=>{
-  try{idb=await openDB();await loadAll()}catch(e){toast("이 브라우저에서는 기록을 저장할 수 없어요")}
+  try{idb=await openDB();await loadAll();resumeAll()}catch(e){toast("이 브라우저에서는 기록을 저장할 수 없어요")}
   checkLock();
   if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(()=>{});
 })();
