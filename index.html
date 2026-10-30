@@ -84,6 +84,14 @@ audio{width:100%;height:40px}
 .vs b{font-family:var(--serif);color:var(--light);font-weight:700;flex:none}
 .vs span{font-size:13px;color:var(--muted)}
 .notice{font-size:13px;color:var(--rec)}
+.title-in{font-family:var(--serif)!important;font-size:17px!important;font-weight:700}
+.kw{display:inline-flex;align-items:center;gap:2px;font-size:13px;border:1px solid var(--line);border-radius:999px;padding:2px 4px 2px 10px;color:var(--fg)}
+.kw button{background:none;border:0;color:var(--faint);font-size:15px;line-height:1;padding:0 4px}
+.kw-add{display:flex;gap:8px;align-items:center;margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
+.kw-add input{flex:1;min-width:0;background:transparent;border:0;color:var(--fg);font:inherit;font-size:14px}
+.step-go{background:none;border:0;color:var(--light);font-size:12px;text-decoration:underline;padding:0 0 0 6px}
+.item-title{font-family:var(--serif);font-weight:700;font-size:16px}
+.chip.tag{border-style:dashed}
 
 /* 기록 */
 .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:14px 0 20px}
@@ -189,6 +197,9 @@ details p{white-space:pre-wrap;color:var(--muted);font-size:13px;margin:0}
     <div><h2>기도를 마쳤습니다</h2><div class="when" id="reviewMeta"></div></div>
     <ul class="steps" id="steps"></ul>
     <audio id="reviewAudio" controls hidden></audio>
+    <div class="box"><label class="label" for="reviewTitle">제목</label><input type="text" id="reviewTitle" class="title-in" placeholder="이번 기도의 제목"><p class="hint" id="titleHint"></p></div>
+    <div class="box"><span class="label">키워드 · ×로 빼기</span><div class="chips" id="kwChips"></div>
+      <div class="kw-add"><input type="text" id="kwIn" placeholder="키워드 직접 추가" aria-label="키워드 추가"><button class="link" id="kwAdd">추가</button></div></div>
     <div class="box"><label class="label" for="reviewText">기도 내용</label><textarea id="reviewText"></textarea></div>
     <div class="box"><label class="label" for="reviewSummary">요약</label><textarea id="reviewSummary" style="min-height:60px" placeholder="AI가 연결되면 자동으로 채워집니다"></textarea></div>
     <div class="box" id="classBox" hidden><span class="label">감사 · 회개 · 간구</span><div class="classes" id="classes"></div></div>
@@ -384,7 +395,16 @@ $("#vowSave").onclick=async()=>{const who=$("#vowWho").value.trim(),text=$("#vow
 /* ---------- 설정 ---------- */
 const keys=()=>({openai:ls.get("k-openai",""),claude:ls.get("k-claude","")});
 function renderKeys(){const k=keys();$("#kOpenai").value=k.openai;$("#kClaude").value=k.claude;$("#keyState").textContent=[k.openai?"전사 연결됨":"",k.claude?"정리 연결됨":""].filter(Boolean).join(" · ")}
-$("#saveKeys").onclick=()=>{ls.set("k-openai",$("#kOpenai").value.trim());ls.set("k-claude",$("#kClaude").value.trim());renderKeys();toast("키를 저장했어요")};
+$("#saveKeys").onclick=async()=>{
+  const hadClaude=!!keys().claude;
+  ls.set("k-openai",$("#kOpenai").value.trim());ls.set("k-claude",$("#kClaude").value.trim());renderKeys();
+  if(!hadClaude&&keys().claude&&idb){
+    const todo=prayers.filter(p=>!p.ai&&(p.transcript||"").trim()&&!(p.pending&&p.pending.organize));
+    for(const p of todo)await patchPrayer(p.id,{pending:{...(p.pending||{}),organize:true},aiApplied:false});
+    toast(todo.length?`키를 저장했어요. 지난 기도 ${todo.length}개도 정리할게요`:"키를 저장했어요");
+    await loadAll();resumeAll();
+  }else toast("키를 저장했어요");
+};
 $("#optLive").checked=ls.get("opt-live",true);$("#optLive").onchange=e=>ls.set("opt-live",e.target.checked);
 $("#optShowLive").checked=ls.get("opt-showlive",false);$("#optShowLive").onchange=e=>ls.set("opt-showlive",e.target.checked);
 
@@ -478,12 +498,12 @@ $("#startBtn").onclick=()=>session?finish():begin();
 async function begin(){
   unlockAudio();clearTimeout(previewTimer);stopSound(.2);soundNote("");
   let stream;
-  try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}})}
+  try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}})}
   catch(e){toast("마이크 권한이 필요해요. 주소창 왼쪽 자물쇠에서 마이크를 허용해 주세요.");return}
   session={start:Date.now(),stream,chunks:[],final:"",interim:""};
   const mime=["audio/webm;codecs=opus","audio/webm","audio/mp4"].find(m=>window.MediaRecorder&&MediaRecorder.isTypeSupported(m))||"";
   try{
-    session.rec=new MediaRecorder(stream,mime?{mimeType:mime,audioBitsPerSecond:24000}:{});
+    session.rec=new MediaRecorder(stream,mime?{mimeType:mime,audioBitsPerSecond:48000}:{});
     const chunks=session.chunks;session.rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
     session.rec.start(5000);
   }catch(e){toast("이 브라우저는 녹음을 지원하지 않아요");stream.getTracks().forEach(t=>t.stop());session=null;return}
@@ -521,7 +541,7 @@ async function finish(){
   let audioId=null;
   try{
     if(blob&&blob.size){audioId=draft.id;await put("audio",{id:audioId,blob,type:blob.type})}
-    await put("prayers",{id:draft.id,startedAt:s.start,durationSec:dur,transcript:live,summary:"",classes:null,verses:[],topicIds:[],audioId,targets,confirmed:false,aiApplied:false,
+    await put("prayers",{id:draft.id,startedAt:s.start,durationSec:dur,title:defaultTitle(s.start),keywords:[],transcript:live,summary:"",classes:null,verses:[],topicIds:[],audioId,targets,confirmed:false,aiApplied:false,
       pending:{transcribe:!!(k.openai&&audioId),organize:!!k.claude}});
     loadAll();
   }catch(e){toast("폰에 저장하지 못했어요. 저장 공간을 확인해 주세요.")}
@@ -541,10 +561,14 @@ function openReview(){
   setStep(0,has?"ok":"skip",has?`${(draft.audio.size/1048576).toFixed(1)}MB · 폰에 저장됨`:"녹음 없음");
   const k=keys();
   if(!(k.openai&&has))setStep(1,draft.live?"ok":"skip",draft.live?"실시간 받아쓰기":"글 없음 · 직접 적거나 전사 키 연결");
-  if(!k.claude){setStep(2,"skip","Claude 키 연결 시 자동")}
+  if(!k.claude){setStep(2,"skip","");const li=$("#steps").children[2];li.innerHTML=`AI 정리 · Claude 키가 없어 쉬는 중<button class="step-go" id="goKeys">키 넣으러 가기</button>`;$("#goKeys").onclick=()=>{$("#saveBtn").click();show("set")}}
   $("#aiBtn").hidden=!k.claude;
   const a=$("#reviewAudio");if(has){a.src=URL.createObjectURL(draft.audio);a.hidden=false}else a.hidden=true;
   $("#reviewText").value=draft.live;$("#reviewSummary").value="";$("#reviewNotice").hidden=true;
+  draft.title=defaultTitle(draft.startedAt);draft.titleEdited=false;draft.keywords=[];
+  $("#reviewTitle").value=draft.title;$("#reviewTitle").oninput=()=>{draft.titleEdited=true};
+  $("#titleHint").textContent=k.claude?"AI가 기도 내용을 보고 제목을 추천해요. 바꿔도 됩니다.":"";
+  renderKw();
   $("#reviewText").oninput=()=>draft&&(draft.textEdited=true);
   $("#saveHint").hidden=false;
   renderClasses();renderTopicEdit();renderInterChips();
@@ -555,8 +579,19 @@ function renderInterChips(){
   $("#interChips").querySelectorAll("button").forEach(b=>b.onclick=()=>{const k=b.dataset.k;draft.interSel.has(k)?draft.interSel.delete(k):draft.interSel.add(k);renderInterChips()});
 }
 
+function defaultTitle(ts){const d=new Date(ts),h=d.getHours();return `${d.getMonth()+1}월 ${d.getDate()}일 ${h<5?"새벽":h<11?"아침":h<17?"낮":h<21?"저녁":"밤"} 기도`}
+function cleanKw(s){return String(s||"").replace(/^#/,"").trim().slice(0,20)}
+function renderKw(){
+  const box=$("#kwChips");
+  box.innerHTML=draft.keywords.length?draft.keywords.map((w,i)=>`<span class="kw">#${esc(w)}<button data-i="${i}" aria-label="${esc(w)} 빼기">×</button></span>`).join(""):`<span class="hint">${keys().claude?"AI 정리가 끝나면 키워드가 자동으로 들어와요":"직접 추가할 수 있어요"}</span>`;
+  box.querySelectorAll("button").forEach(b=>b.onclick=()=>{draft.keywords.splice(+b.dataset.i,1);draft.kwEdited=true;renderKw()});
+}
+$("#kwAdd").onclick=()=>{const w=cleanKw($("#kwIn").value);if(w&&!draft.keywords.includes(w)){draft.keywords.push(w);draft.kwEdited=true;renderKw()}$("#kwIn").value="";$("#kwIn").focus()};
+$("#kwIn").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("#kwAdd").click()}});
+
 /* ---------- 뒤에서 정리: 화면을 닫아도, 앱을 다시 열어도 이어서 ---------- */
 const running=new Set();
+function cleanTitle(s){return String(s||"").replace(/^["'“]|["'”]$/g,"").trim().slice(0,40)}
 async function patchPrayer(id,patch){const p=await getOne("prayers",id);if(!p)return null;Object.assign(p,patch);await put("prayers",p);return p}
 async function processPrayer(id){
   if(running.has(id))return;running.add(id);
@@ -587,13 +622,13 @@ async function processPrayer(id){
       if(onScreen()){setStep(2,"run");$("#aiBtn").disabled=true}
       try{
         const r=await organizeAI(text,k.claude,p.targets||[]);
-        const ai={summary:r.summary||"",classes:{thanks:r.thanks||[],repent:r.repent||[],ask:r.ask||[]},verses:(r.verses||[]).slice(0,2),
+        const ai={title:cleanTitle(r.title),keywords:[...new Set((r.keywords||[]).map(cleanKw).filter(Boolean))].slice(0,6),summary:r.summary||"",classes:{thanks:r.thanks||[],repent:r.repent||[],ask:r.ask||[]},verses:(r.verses||[]).slice(0,2),
           topics:(r.topics||[]).slice(0,7).map(t=>({text:String(t.text||t),matchId:t.match&&topics.some(x=>x.id===t.match)?t.match:null})),
           intercede:(r.intercede||[]).filter(x=>(p.targets||[]).some(t=>t.key===x))};
         p=await getOne("prayers",id);if(!p)return;
         p=await patchPrayer(id,{ai,pending:{...p.pending,organize:false}});if(!p)return;
         if(onScreen()){
-          $("#reviewSummary").value=ai.summary;draft.classes=ai.classes;draft.verses=ai.verses;draft.topics=ai.topics.map(t=>({...t}));
+          if(!draft.titleEdited&&ai.title){draft.title=ai.title;$("#reviewTitle").value=ai.title}if(!draft.kwEdited){draft.keywords=[...ai.keywords];renderKw()}$("#reviewSummary").value=ai.summary;draft.classes=ai.classes;draft.verses=ai.verses;draft.topics=ai.topics.map(t=>({...t}));
           ai.intercede.forEach(x=>draft.interSel.add(x));
           renderClasses();renderTopicEdit();renderInterChips();setStep(2,"ok");
         }else{await applyAI(id);toast("AI 정리가 끝나 기록에 반영했어요");loadAll()}
@@ -609,7 +644,9 @@ async function saveTopics(list,prayerId,when){
   const ids=[];
   for(const t of list){
     const text=(t.text||"").trim();if(!text)continue;
-    let tp=t.matchId&&topics.find(x=>x.id===t.matchId);
+    const norm=s=>s.replace(/\s/g,"");
+    let tp=(t.matchId&&topics.find(x=>x.id===t.matchId))||topics.find(x=>x.status==="waiting"&&norm(x.text)===norm(text));
+    if(tp&&(tp.prayerIds||[]).includes(prayerId)){ids.push(tp.id);continue}
     if(tp)tp={...tp,prayedCount:(tp.prayedCount||1)+1,lastPrayedAt:when,prayerIds:[...(tp.prayerIds||[]),prayerId]};
     else tp={id:uid(),text,status:"waiting",createdAt:when,lastPrayedAt:when,prayedCount:1,answer:"",answeredAt:null,prayerIds:[prayerId]};
     await put("topics",tp);ids.push(tp.id);
@@ -622,6 +659,8 @@ async function applyAI(id){
   const p=await getOne("prayers",id);if(!p||!p.ai||p.aiApplied)return;
   const ai=p.ai,patch={aiApplied:true};
   if(!p.summary)patch.summary=ai.summary;
+  if(ai.title&&(!p.title||!p.titleEdited))patch.title=ai.title;
+  if(!(p.keywords||[]).length&&!p.kwEdited)patch.keywords=ai.keywords||[];
   if(!p.classes)patch.classes=ai.classes;
   if(!(p.verses||[]).length)patch.verses=ai.verses;
   if(!(p.topicIds||[]).length)patch.topicIds=await saveTopics(ai.topics,id,p.startedAt);
@@ -656,7 +695,8 @@ $("#saveBtn").onclick=async()=>{
       p={id,startedAt:when,durationSec:draft.durationSec,audioId,targets:draft.targets,pending:{}};
     }
     const stillWorking=!!(p.pending&&(p.pending.transcribe||p.pending.organize));
-    await put("prayers",{...p,transcript:$("#reviewText").value.trim()||p.transcript||"",textEdited:!!draft.textEdited,summary:$("#reviewSummary").value.trim(),
+    await put("prayers",{...p,title:$("#reviewTitle").value.trim()||defaultTitle(when),titleEdited:!!draft.titleEdited,keywords:[...draft.keywords],kwEdited:!!draft.kwEdited,
+      transcript:$("#reviewText").value.trim()||p.transcript||"",textEdited:!!draft.textEdited,summary:$("#reviewSummary").value.trim(),
       classes:draft.classes||p.classes||null,verses:draft.verses.length?draft.verses:(p.verses||[]),topicIds,confirmed:true,aiApplied:!!p.ai||!stillWorking});
     closeReview();await loadAll();
     toast(stillWorking?"저장했어요. 정리가 끝나면 자동으로 채워져요":"기도를 저장했어요");
@@ -668,15 +708,20 @@ function closeReview(){const a=$("#reviewAudio");if(a.src)URL.revokeObjectURL(a.
 
 /* ---------- AI 호출 (폰에서 바로) ---------- */
 function errText(e){const m=String(e&&e.message||e);if(/401|invalid.*key|authentication/i.test(m))return "API 키가 맞지 않아요. 설정에서 확인해 주세요.";if(/429|rate/i.test(m))return "요청이 많아요. 잠시 후 다시 해 주세요.";if(/Failed to fetch|NetworkError/i.test(m))return "인터넷 연결을 확인해 주세요. 녹음은 저장할 수 있어요.";return "처리 중 문제가 생겼어요: "+m.slice(0,80)}
-async function transcribe(blob,key){
+/* 한국어가 더 정확한 최신 전사 모델을 먼저 쓰고, 안 되면 예전 모델로 */
+async function transcribeWith(model,blob,key){
   const ext=(blob.type.includes("mp4")?"m4a":"webm");
-  const fd=new FormData();fd.append("file",blob,"prayer."+ext);fd.append("model","whisper-1");fd.append("language","ko");
-  fd.append("prompt","하나님 아버지, 예수님의 이름으로 기도합니다. 아멘.");
+  const fd=new FormData();fd.append("file",blob,"prayer."+ext);fd.append("model",model);fd.append("language","ko");
+  fd.append("prompt","한국어 기도를 받아 적은 글입니다. 하나님 아버지, 주님, 예수님의 이름으로 기도합니다. 아멘.");
   const r=await fetch("https://api.openai.com/v1/audio/transcriptions",{method:"POST",headers:{Authorization:"Bearer "+key},body:fd});
-  if(!r.ok)throw new Error(r.status+" "+(await r.text()).slice(0,120));
-  return (await r.json()).text.trim();
+  if(!r.ok){const e=new Error(r.status+" "+(await r.text()).slice(0,120));e.status=r.status;throw e}
+  return ((await r.json()).text||"").trim();
 }
-async function claude(prompt,key,max=1500){
+async function transcribe(blob,key){
+  try{return await transcribeWith("gpt-4o-transcribe",blob,key)}
+  catch(e){if(e.status===401||e.status===429||!e.status)throw e;return await transcribeWith("whisper-1",blob,key)}
+}
+async function claude(prompt,key,max=2500){
   const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
     body:JSON.stringify({model:"claude-haiku-5-5",max_tokens:max,messages:[{role:"user",content:prompt}]})});
   if(!r.ok)throw new Error(r.status+" "+(await r.text()).slice(0,120));
@@ -689,7 +734,9 @@ async function organizeAI(text,key,targets){
 기존에 기다리는 기도 제목 목록이 주어집니다. 이번 기도 제목이 기존 제목과 같은 내용이면 "match"에 그 id를 넣으세요.
 
 다음 JSON 하나로만 답하세요:
-{"summary":"기도 전체 2~3문장 요약, '~를 위해 기도함' 같은 기록체",
+{"title":"이번 기도 전체를 담은 제목 한 줄, 20자 이내, 따옴표 없이 (예: 아버지 건강을 맡긴 아침 기도)",
+ "keywords":["어떤 기도였는지 나타내는 짧은 명사 3~6개, # 없이 (예: 가족, 건강, 감사, 일터)"],
+ "summary":"기도 전체 2~3문장 요약, '~를 위해 기도함' 같은 기록체",
  "topics":[{"text":"구체적 기도 제목 짧게","match":"기존 id 또는 null"}],
  "thanks":["감사한 내용 한 줄씩"],"repent":["회개한 내용 한 줄씩"],"ask":["간구한 내용 한 줄씩"],
  "verses":[{"ref":"예: 빌립보서 4:6-7","why":"이 기도와 이어지는 이유 한 문장"}],
@@ -747,7 +794,8 @@ function renderLog(){
   if(!prayers.length){el.innerHTML=`<div class="empty">아직 기록된 기도가 없어요.<br>기도실에서 ‘하나님 아버지’를 눌러 보세요.</div>`;return}
   const tmap=Object.fromEntries(topics.map(t=>[t.id,t]));
   el.innerHTML=prayers.map(p=>{const tl=(p.topicIds||[]).map(i=>tmap[i]).filter(Boolean);const c=p.classes;
-    return `<div class="item"><div class="item-head"><span class="when">${dateText(p.startedAt)}</span><span class="when">${p.pending&&(p.pending.transcribe||p.pending.organize)?"정리 중 · ":""}${minText(p.durationSec||0)}</span></div>
+    return `<div class="item"><div class="item-title">${esc(p.title||defaultTitle(p.startedAt))}</div><div class="item-head"><span class="when">${dateText(p.startedAt)}</span><span class="when">${p.pending&&(p.pending.transcribe||p.pending.organize)?"정리 중 · ":""}${minText(p.durationSec||0)}</span></div>
+    ${(p.keywords||[]).length?`<div class="chips">${p.keywords.map((w,i)=>`<span class="kw">#${esc(w)}<button data-kwdel="${p.id}" data-i="${i}" aria-label="${esc(w)} 빼기">×</button></span>`).join("")}</div>`:""}
     ${p.summary?`<div style="font-size:14px">${esc(p.summary)}</div>`:""}
     ${tl.length?`<div class="chips">${tl.map(t=>`<span class="chip ${t.status==="answered"?"ok":""}">${esc(t.text)}</span>`).join("")}</div>`:""}
     <details><summary>자세히 보기</summary><div class="body">
@@ -757,6 +805,7 @@ function renderLog(){
       ${p.transcript?`<p>${esc(p.transcript)}</p>`:""}
       <div><button class="link" data-pdel="${p.id}">이 기도 삭제</button></div>
     </div></details></div>`}).join("");
+  el.querySelectorAll("[data-kwdel]").forEach(b=>b.onclick=async()=>{const p=prayers.find(x=>x.id===b.dataset.kwdel);if(!p)return;const kw=[...(p.keywords||[])];kw.splice(+b.dataset.i,1);await patchPrayer(p.id,{keywords:kw,kwEdited:true});await loadAll()});
   el.querySelectorAll("[data-play]").forEach(b=>b.onclick=async()=>{const a=await getOne("audio",b.dataset.play);if(!a)return toast("녹음을 찾지 못했어요");const box=document.getElementById("pl-"+b.dataset.play);box.innerHTML="";const au=document.createElement("audio");au.controls=true;au.src=URL.createObjectURL(a.blob);box.append(au);au.play().catch(()=>{})});
   el.querySelectorAll("[data-dl]").forEach(b=>b.onclick=async()=>{const a=await getOne("audio",b.dataset.dl);const p=prayers.find(x=>x.audioId===b.dataset.dl);if(a)download(a.blob,`기도_${dayKey(p.startedAt)}_${pad(new Date(p.startedAt).getHours())}${pad(new Date(p.startedAt).getMinutes())}.${a.type.includes("mp4")?"m4a":"webm"}`)});
   el.querySelectorAll("[data-pdel]").forEach(b=>b.onclick=async()=>{if(!b.dataset.sure){b.dataset.sure=1;b.textContent="녹음까지 정말 삭제";return}const p=prayers.find(x=>x.id===b.dataset.pdel);await del("prayers",p.id);if(p.audioId)await del("audio",p.audioId);await loadAll();toast("삭제했어요")});
