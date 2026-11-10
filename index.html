@@ -347,7 +347,7 @@ details p{white-space:pre-wrap;color:var(--muted);font-size:13px;margin:0}
       <input type="password" id="kOpenai" placeholder="sk-..." autocomplete="off">
       <label class="hint" for="kClaude">기도 정리 (Claude API 키)</label>
       <input type="password" id="kClaude" placeholder="sk-ant-..." autocomplete="off">
-      <div class="row"><button class="btn" id="saveKeys">키 저장</button><span class="key-ok" id="keyState"></span></div>
+      <div class="row"><button class="btn" id="saveKeys">키 저장</button><button class="btn" id="showKeys" type="button">키 보기</button><span class="key-ok" id="keyState"></span></div>
       <p class="hint">키가 없어도 기도·녹음·기록은 모두 됩니다. 전사 키가 없으면 기도 중 실시간 글자를, 정리 키가 없으면 직접 적은 제목을 씁니다. 키는 이 폰 밖으로 나가지 않고 해당 회사로만 전송됩니다.</p>
     </div>
     <div class="box set">
@@ -979,6 +979,7 @@ $("#vowSave").onclick=async()=>{const who=$("#vowWho").value.trim(),text=$("#vow
 /* ---------- 설정 ---------- */
 const keys=()=>({openai:ls.get("k-openai",""),claude:ls.get("k-claude","")});
 function renderKeys(){const k=keys();$("#kOpenai").value=k.openai;$("#kClaude").value=k.claude;$("#keyState").textContent=[k.openai?"전사 연결됨":"",k.claude?"정리 연결됨":""].filter(Boolean).join(" · ")}
+$("#showKeys").onclick=()=>{const show=$("#kOpenai").type==="password";["#kOpenai","#kClaude"].forEach(id=>$(id).type=show?"text":"password");$("#showKeys").textContent=show?"키 숨기기":"키 보기"}
 $("#saveKeys").onclick=async()=>{
   const hadClaude=!!keys().claude;
   ls.set("k-openai",$("#kOpenai").value.trim());ls.set("k-claude",$("#kClaude").value.trim());renderKeys();
